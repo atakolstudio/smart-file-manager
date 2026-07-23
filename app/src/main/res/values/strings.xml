@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Smart File Manager</string>
+
+    <string name="nav_home">Ana Sayfa</string>
+    <string name="nav_files">Dosyalar</string>
+    <string name="nav_favorites">Favoriler</string>
+    <string name="nav_settings">Ayarlar</string>
+
+    <string name="home_title">Depolama Alanım</string>
+    <string name="home_internal_storage">Dahili Depolama</string>
+    <string name="home_quick_access">Hızlı Erişim</string>
+    <string name="home_category_images">Fotoğraflar</string>
+    <string name="home_category_videos">Videolar</string>
+    <string name="home_category_music">Müzikler</string>
+    <string name="home_category_documents">Belgeler</string>
+    <string name="home_category_downloads">İndirilenler</string>
+    <string name="home_category_apps">Uygulamalar</string>
+
+    <string name="permission_title">İzin Gerekli</string>
+    <string name="permission_message">Dosyalarınızı yönetebilmek için depolama izni vermeniz gerekiyor.</string>
+    <string name="permission_grant_button">İzin Ver</string>
+    <string name="permission_denied_message">İzin verilmeden uygulama dosyalarınıza erişemez.</string>
+    <string name="permission_settings_button">Ayarlara Git</string>
+
+    <string name="action_copy">Kopyala</string>
+    <string name="action_cut">Kes</string>
+    <string name="action_paste">Yapıştır</string>
+    <string name="action_delete">Sil</string>
+    <string name="action_rename">Yeniden Adlandır</string>
+    <string name="action_new_folder">Yeni Klasör</string>
+    <string name="action_share">Paylaş</string>
+
+    <string name="error_generic">Bir hata oluştu. Lütfen tekrar deneyin.</string>
+    <string name="empty_folder">Bu klasör boş</string>
+</resources>
