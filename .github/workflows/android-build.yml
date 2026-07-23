@@ -10,6 +10,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
 
     steps:
       - name: Checkout
@@ -62,6 +65,7 @@ jobs:
           import json
           import os
           import urllib.request
+          import urllib.error
 
           with open("build-output.log", "r", errors="replace") as f:
               content = f.read()[-50000:]
@@ -81,8 +85,12 @@ jobs:
                   "Content-Type": "application/json"
               }
           )
-          with urllib.request.urlopen(req) as resp:
-              print(resp.status)
+          try:
+              with urllib.request.urlopen(req) as resp:
+                  print(resp.status)
+          except urllib.error.HTTPError as e:
+              print("HTTP ERROR", e.code)
+              print(e.read().decode("utf-8", errors="replace"))
           PYEOF
 
       - name: Upload APK artifact
