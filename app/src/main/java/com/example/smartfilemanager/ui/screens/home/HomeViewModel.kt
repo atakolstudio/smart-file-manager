@@ -1,8 +1,10 @@
 package com.example.smartfilemanager.ui.screens.home
 
-import android.os.Environment
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.smartfilemanager.data.OperationResult
+import com.example.smartfilemanager.data.StorageManager
+import com.example.smartfilemanager.model.CategorySummary
 import com.example.smartfilemanager.permission.PermissionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,16 +23,18 @@ data class HomeUiState(
     val isLoading: Boolean = true,
     val hasPermission: Boolean = false,
     val storageSummary: StorageSummary = StorageSummary(),
+    val categorySummaries: List<CategorySummary> = emptyList(),
     val errorMessage: String? = null
 )
 
 /**
- * Ana sayfanın durumunu yönetir: depolama izni kontrolü ve genel depolama özetini hesaplar.
- * Ağır dosya sistemi işlemleri ileriki aşamada StorageManager/FileManager üzerinden yapılacaktır.
+ * Ana sayfanın durumunu yönetir: depolama izni kontrolü, genel depolama özetini
+ * ve [StorageManager] üzerinden gerçek kategori bazlı dosya sayısı/boyutlarını hesaplar.
  */
 @HiltViewModel
 class HomeViewModel @Inject constructor(
-    private val permissionManager: PermissionManager
+    private val permissionManager: PermissionManager,
+    private val storageManager: StorageManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
@@ -39,31 +43,41 @@ class HomeViewModel @Inject constructor(
     fun refresh() {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
-            try {
-                val hasPermission = permissionManager.hasAllFilesAccess()
-                val summary = if (hasPermission) computeStorageSummary() else StorageSummary()
-                _uiState.value = HomeUiState(
-                    isLoading = false,
-                    hasPermission = hasPermission,
-                    storageSummary = summary
-                )
-            } catch (t: Throwable) {
-                _uiState.value = _uiState.value.copy(
-                    isLoading = false,
-                    errorMessage = t.message
-                )
+
+            val hasPermission = permissionManager.hasAllFilesAccess()
+            if (!hasPermission) {
+                _uiState.value = HomeUiState(isLoading = false, hasPermission = false)
+                return@launch
+            }
+
+            val (total, free) = storageManager.getTotalAndFreeBytes()
+            val storageSummary = StorageSummary(
+                totalBytes = total,
+                usedBytes = total - free,
+                freeBytes = free
+            )
+
+            when (val result = storageManager.getCategorySummaries()) {
+                is OperationResult.Success -> {
+                    _uiState.value = HomeUiState(
+                        isLoading = false,
+                        hasPermission = true,
+                        storageSummary = storageSummary,
+                        categorySummaries = result.data
+                    )
+                }
+                is OperationResult.Error -> {
+                    _uiState.value = HomeUiState(
+                        isLoading = false,
+                        hasPermission = true,
+                        storageSummary = storageSummary,
+                        errorMessage = result.message
+                    )
+                }
             }
         }
     }
 
-    private fun computeStorageSummary(): StorageSummary {
-        val statFs = android.os.StatFs(Environment.getExternalStorageDirectory().path)
-        val total = statFs.totalBytes
-        val free = statFs.availableBytes
-        return StorageSummary(
-            totalBytes = total,
-            usedBytes = total - free,
-            freeBytes = free
-        )
-    }
+    fun directoryPathFor(categoryLabel: String): String? =
+        storageManager.getCommonDirectories()[categoryLabel]?.absolutePath
 }

@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.smartfilemanager.R
+import com.example.smartfilemanager.model.FileCategory
 import com.example.smartfilemanager.ui.theme.ApkColor
 import com.example.smartfilemanager.ui.theme.AudioColor
 import com.example.smartfilemanager.ui.theme.DocumentColor
@@ -45,24 +46,30 @@ import com.example.smartfilemanager.ui.theme.ImageColor
 import com.example.smartfilemanager.ui.theme.VideoColor
 import com.example.smartfilemanager.util.SizeFormatter
 
+/**
+ * @param directoryLabel [StorageManager.getCommonDirectories] içindeki anahtarla eşleşir.
+ * null ise (ör. Uygulamalar) bu kategori bir klasöre değil ayrı bir ekrana yönlendirilecektir.
+ */
 private data class HomeCategory(
     val titleRes: Int,
     val icon: ImageVector,
-    val color: androidx.compose.ui.graphics.Color
+    val color: androidx.compose.ui.graphics.Color,
+    val fileCategory: FileCategory?,
+    val directoryLabel: String?
 )
 
 private val homeCategories = listOf(
-    HomeCategory(R.string.home_category_images, Icons.Filled.Image, ImageColor),
-    HomeCategory(R.string.home_category_videos, Icons.Filled.Videocam, VideoColor),
-    HomeCategory(R.string.home_category_music, Icons.Filled.Audiotrack, AudioColor),
-    HomeCategory(R.string.home_category_documents, Icons.Filled.Description, DocumentColor),
-    HomeCategory(R.string.home_category_downloads, Icons.Filled.Download, DocumentColor),
-    HomeCategory(R.string.home_category_apps, Icons.Filled.Apps, ApkColor)
+    HomeCategory(R.string.home_category_images, Icons.Filled.Image, ImageColor, FileCategory.IMAGE, "Pictures"),
+    HomeCategory(R.string.home_category_videos, Icons.Filled.Videocam, VideoColor, FileCategory.VIDEO, "Movies"),
+    HomeCategory(R.string.home_category_music, Icons.Filled.Audiotrack, AudioColor, FileCategory.AUDIO, "Music"),
+    HomeCategory(R.string.home_category_documents, Icons.Filled.Description, DocumentColor, FileCategory.DOCUMENT, "Documents"),
+    HomeCategory(R.string.home_category_downloads, Icons.Filled.Download, DocumentColor, null, "Download"),
+    HomeCategory(R.string.home_category_apps, Icons.Filled.Apps, ApkColor, FileCategory.APK, null)
 )
 
 @Composable
 fun HomeScreen(
-    onCategoryClick: (Int) -> Unit,
+    onNavigateToFolder: (String) -> Unit,
     onRequestPermission: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: HomeViewModel = hiltViewModel()
@@ -88,7 +95,12 @@ fun HomeScreen(
             else -> HomeContent(
                 paddingValues = paddingValues,
                 storageSummary = uiState.storageSummary,
-                onCategoryClick = onCategoryClick
+                categorySummaries = uiState.categorySummaries,
+                onCategoryClick = { category ->
+                    category.directoryLabel
+                        ?.let { viewModel.directoryPathFor(it) }
+                        ?.let(onNavigateToFolder)
+                }
             )
         }
     }
@@ -111,7 +123,8 @@ private fun LoadingContent(paddingValues: PaddingValues) {
 private fun HomeContent(
     paddingValues: PaddingValues,
     storageSummary: StorageSummary,
-    onCategoryClick: (Int) -> Unit
+    categorySummaries: List<com.example.smartfilemanager.model.CategorySummary>,
+    onCategoryClick: (HomeCategory) -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -137,7 +150,14 @@ private fun HomeContent(
         ) {
             items(homeCategories.size) { index ->
                 val category = homeCategories[index]
-                CategoryTile(category = category, onClick = { onCategoryClick(index) })
+                val fileCount = categorySummaries
+                    .firstOrNull { it.category == category.fileCategory }
+                    ?.fileCount
+                CategoryTile(
+                    category = category,
+                    fileCount = fileCount,
+                    onClick = { onCategoryClick(category) }
+                )
             }
         }
     }
@@ -188,7 +208,7 @@ private fun StorageSummaryCard(summary: StorageSummary) {
 }
 
 @Composable
-private fun CategoryTile(category: HomeCategory, onClick: () -> Unit) {
+private fun CategoryTile(category: HomeCategory, fileCount: Int?, onClick: () -> Unit) {
     Card(
         onClick = onClick,
         shape = RoundedCornerShape(16.dp),
@@ -211,6 +231,13 @@ private fun CategoryTile(category: HomeCategory, onClick: () -> Unit) {
                 text = stringResourceCompat(category.titleRes),
                 style = MaterialTheme.typography.labelSmall
             )
+            if (fileCount != null) {
+                Text(
+                    text = "$fileCount öğe",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 }

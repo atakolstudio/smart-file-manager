@@ -61,7 +61,9 @@ fun SmartFileManagerNavHost(
         ) {
             composable(Screen.Home.route) {
                 HomeScreen(
-                    onCategoryClick = { /* Aşama 3'te ilgili kategori klasörüne yönlendirilecek */ },
+                    onNavigateToFolder = { path ->
+                        navController.navigate(Screen.filesRouteWithPath(path))
+                    },
                     onRequestPermission = onRequestPermission
                 )
             }
@@ -75,7 +77,12 @@ fun SmartFileManagerNavHost(
                 )
             ) { backStackEntry ->
                 val path = backStackEntry.arguments?.getString(Screen.FILES_PATH_ARG)
-                FilesScreen(path = path?.ifEmpty { null })
+                FilesScreen(
+                    path = path?.ifEmpty { null },
+                    onOpenFolder = { folderPath ->
+                        navController.navigate(Screen.filesRouteWithPath(folderPath))
+                    }
+                )
             }
 
             composable(Screen.Favorites.route) {
