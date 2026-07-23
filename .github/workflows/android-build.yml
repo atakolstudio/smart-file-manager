@@ -39,7 +39,10 @@ jobs:
         run: chmod +x ./gradlew || true
 
       - name: Build debug APK
-        run: gradle assembleDebug --stacktrace 2>&1 | tee build-output.log
+        shell: bash
+        run: |
+          set -o pipefail
+          gradle assembleDebug --stacktrace 2>&1 | tee build-output.log
 
       - name: Upload build log (always, for debugging)
         if: always()
