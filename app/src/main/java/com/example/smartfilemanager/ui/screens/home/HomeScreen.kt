@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -67,6 +68,7 @@ private val homeCategories = listOf(
     HomeCategory(R.string.home_category_apps, Icons.Filled.Apps, ApkColor, FileCategory.APK, null)
 )
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     onNavigateToFolder: (String) -> Unit,

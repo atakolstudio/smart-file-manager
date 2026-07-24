@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -32,6 +33,7 @@ import com.example.smartfilemanager.util.SizeFormatter
  * Belirtilen klasörün içeriğini listeler. Kopyala/kes/sil/yeniden adlandırma gibi
  * düzenleme işlemleri Aşama 3'te bu ekrana eklenecektir; şu an salt-okunur listelemedir.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FilesScreen(
     path: String?,
