@@ -1,21 +1,22 @@
 package com.example.smartfilemanager
 
-import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import com.example.smartfilemanager.navigation.SmartFileManagerNavHost
 import com.example.smartfilemanager.permission.PermissionManager
 import com.example.smartfilemanager.ui.theme.SmartFileManagerTheme
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
+/**
+ * Uygulamanın tek Activity'si. İzin isteme akışını (Android 11+ MANAGE_EXTERNAL_STORAGE
+ * veya Android 12L ve altı runtime izinleri) başlatır; iznin gerçek zamanlı kontrolü
+ * ekranlar (ör. HomeScreen) tarafından yaşam döngüsüne bağlı olarak yapılır.
+ */
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
@@ -24,46 +25,23 @@ class MainActivity : ComponentActivity() {
 
     private val runtimePermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
-    ) {
-        recheckPermissionState()
-    }
+    ) { /* Sonuç, ilgili ekranın onResume/refresh akışıyla otomatik olarak yansıtılır */ }
 
     private val manageAllFilesLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
-    ) {
-        recheckPermissionState()
-    }
-
-    private var hasPermissionState = mutableStateOf(false)
+    ) { /* Sonuç, ilgili ekranın onResume/refresh akışıyla otomatik olarak yansıtılır */ }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        hasPermissionState = mutableStateOf(false)
-
         setContent {
-            var hasPermission by hasPermissionState
-
             SmartFileManagerTheme {
                 SmartFileManagerNavHost(
                     onRequestPermission = { requestStoragePermission() }
                 )
             }
-
-            androidx.compose.runtime.LaunchedEffect(Unit) {
-                hasPermission = permissionManager.hasAllFilesAccess()
-            }
         }
-    }
-
-    override fun onResume() {
-        super.onResume()
-        recheckPermissionState()
-    }
-
-    private fun recheckPermissionState() {
-        hasPermissionState.value = permissionManager.hasAllFilesAccess()
     }
 
     private fun requestStoragePermission() {
