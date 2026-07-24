@@ -11,7 +11,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       issues: write
 
     steps:
@@ -98,3 +98,15 @@ jobs:
         with:
           name: smart-file-manager-debug-apk
           path: app/build/outputs/apk/debug/*.apk
+
+      - name: Publish/refresh downloadable release
+        if: success() && github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: debug-latest
+          name: "En Son Debug APK"
+          body: |
+            Otomatik olarak main dalındaki her başarılı derlemeden üretilir.
+            Commit: ${{ github.sha }}
+          make_latest: true
+          files: app/build/outputs/apk/debug/*.apk
