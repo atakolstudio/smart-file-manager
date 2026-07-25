@@ -119,6 +119,52 @@ class FileManager @Inject constructor(
             }
         }
 
+    suspend fun getFileInfo(path: String): OperationResult<com.example.smartfilemanager.model.FileInfo> =
+        withContext(ioDispatcher) {
+            safeFileOperation("Dosya bilgisi okunamadı: $path") {
+                val file = File(path)
+                if (!file.exists()) throw IllegalStateException("Dosya bulunamadı")
+
+                val creationTime = try {
+                    val attrs = Files.readAttributes(file.toPath(), java.nio.file.attribute.BasicFileAttributes::class.java)
+                    attrs.creationTime().toMillis()
+                } catch (t: Throwable) {
+                    null
+                }
+
+                com.example.smartfilemanager.model.FileInfo(
+                    name = file.name,
+                    path = file.absolutePath,
+                    isDirectory = file.isDirectory,
+                    sizeBytes = if (file.isDirectory) 0L else file.length(),
+                    lastModified = file.lastModified(),
+                    creationTime = creationTime,
+                    mimeType = if (file.isDirectory) null else
+                        com.example.smartfilemanager.util.MimeTypeHelper.getMimeType(file.name),
+                    canRead = file.canRead(),
+                    canWrite = file.canWrite(),
+                    canExecute = file.canExecute()
+                )
+            }
+        }
+
+    /**
+     * Metin tabanlı dosyaların (txt, json, xml, html, md, csv) önizlemesi için
+     * dosya içeriğini en fazla [maxChars] karakter olacak şekilde okur.
+     * Büyük dosyalarda belleği korumak için okuma bu sınırda kesilir.
+     */
+    suspend fun readTextPreview(path: String, maxChars: Int = 200_000): OperationResult<String> =
+        withContext(ioDispatcher) {
+            safeFileOperation("Dosya içeriği okunamadı: $path") {
+                val file = File(path)
+                val buffer = CharArray(maxChars)
+                file.bufferedReader(Charsets.UTF_8).use { reader ->
+                    val read = reader.read(buffer, 0, maxChars)
+                    if (read <= 0) "" else String(buffer, 0, read)
+                }
+            }
+        }
+
     private fun copyRecursively(source: File, destination: File) {
         if (source.isDirectory) {
             if (!destination.exists()) destination.mkdirs()

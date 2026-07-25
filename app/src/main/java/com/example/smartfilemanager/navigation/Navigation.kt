@@ -28,6 +28,7 @@ import com.example.smartfilemanager.R
 import com.example.smartfilemanager.ui.screens.favorites.FavoritesScreen
 import com.example.smartfilemanager.ui.screens.files.FilesScreen
 import com.example.smartfilemanager.ui.screens.home.HomeScreen
+import com.example.smartfilemanager.ui.screens.preview.PreviewScreen
 import com.example.smartfilemanager.ui.screens.settings.SettingsScreen
 
 private data class BottomNavItem(
@@ -82,7 +83,25 @@ fun SmartFileManagerNavHost(
                     path = path?.ifEmpty { null },
                     onOpenFolder = { folderPath ->
                         navController.navigate(Screen.filesRouteWithPath(folderPath))
+                    },
+                    onOpenPreview = { filePath ->
+                        navController.navigate(Screen.previewRouteWithPath(filePath))
                     }
+                )
+            }
+
+            composable(
+                route = "${Screen.Preview.route}?${Screen.PREVIEW_PATH_ARG}={${Screen.PREVIEW_PATH_ARG}}",
+                arguments = listOf(
+                    navArgument(Screen.PREVIEW_PATH_ARG) {
+                        defaultValue = ""
+                    }
+                )
+            ) { backStackEntry ->
+                val path = backStackEntry.arguments?.getString(Screen.PREVIEW_PATH_ARG)
+                PreviewScreen(
+                    path = path?.ifEmpty { null },
+                    onBack = { navController.popBackStack() }
                 )
             }
 

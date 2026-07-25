@@ -8,15 +8,22 @@ sealed class Screen(val route: String) {
     data object Permission : Screen("permission")
     data object Home : Screen("home")
     data object Files : Screen("files")
+    data object Preview : Screen("preview")
     data object Favorites : Screen("favorites")
     data object Settings : Screen("settings")
 
     companion object {
         const val FILES_PATH_ARG = "path"
+        const val PREVIEW_PATH_ARG = "path"
 
         fun filesRouteWithPath(path: String): String {
             val encoded = java.net.URLEncoder.encode(path, "UTF-8")
             return "${Files.route}?$FILES_PATH_ARG=$encoded"
+        }
+
+        fun previewRouteWithPath(path: String): String {
+            val encoded = java.net.URLEncoder.encode(path, "UTF-8")
+            return "${Preview.route}?$PREVIEW_PATH_ARG=$encoded"
         }
     }
 }
