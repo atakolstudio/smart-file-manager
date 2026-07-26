@@ -1,5 +1,10 @@
 package com.example.smartfilemanager.navigation
 
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Home
@@ -59,7 +64,19 @@ fun SmartFileManagerNavHost(
         NavHost(
             navController = navController,
             startDestination = Screen.Home.route,
-            modifier = Modifier.padding(paddingValues)
+            modifier = Modifier.padding(paddingValues),
+            enterTransition = {
+                slideInHorizontally(animationSpec = tween(300)) { it / 4 } + fadeIn(tween(300))
+            },
+            exitTransition = {
+                slideOutHorizontally(animationSpec = tween(300)) { -it / 4 } + fadeOut(tween(300))
+            },
+            popEnterTransition = {
+                slideInHorizontally(animationSpec = tween(300)) { -it / 4 } + fadeIn(tween(300))
+            },
+            popExitTransition = {
+                slideOutHorizontally(animationSpec = tween(300)) { it / 4 } + fadeOut(tween(300))
+            }
         ) {
             composable(Screen.Home.route) {
                 HomeScreen(

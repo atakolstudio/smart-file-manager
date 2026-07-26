@@ -20,6 +20,7 @@
     <string name="permission_title">İzin Gerekli</string>
     <string name="permission_message">Dosyalarınızı yönetebilmek için depolama izni vermeniz gerekiyor.</string>
     <string name="permission_grant_button">İzin Ver</string>
+    <string name="permission_recheck_button">Yeniden Kontrol Et</string>
     <string name="permission_denied_message">İzin verilmeden uygulama dosyalarınıza erişemez.</string>
     <string name="permission_settings_button">Ayarlara Git</string>
 
