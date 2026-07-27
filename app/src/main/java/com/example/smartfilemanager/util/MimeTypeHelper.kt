@@ -19,7 +19,7 @@ object MimeTypeHelper {
     fun getMimeType(fileName: String): String? {
         val extension = fileName.substringAfterLast('.', "").lowercase(Locale.ROOT)
         if (extension.isEmpty()) return null
-        return MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension)
+        return runCatching { MimeTypeMap.getSingleton()?.getMimeTypeFromExtension(extension) }.getOrNull()
     }
 
     fun getCategory(fileName: String, isDirectory: Boolean): FileCategory {

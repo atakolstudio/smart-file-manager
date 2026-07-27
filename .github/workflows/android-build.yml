@@ -41,11 +41,19 @@ jobs:
       - name: Grant execute permission (if wrapper present)
         run: chmod +x ./gradlew || true
 
-      - name: Build debug APK
+      - name: Run unit tests and build debug APK
         shell: bash
         run: |
           set -o pipefail
-          gradle assembleDebug --stacktrace 2>&1 | tee build-output.log
+          gradle testDebugUnitTest assembleDebug --stacktrace --continue 2>&1 | tee build-output.log
+
+      - name: Upload test results (always, for debugging)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: app/build/reports/tests/testDebugUnitTest/
+          if-no-files-found: ignore
 
       - name: Upload build log (always, for debugging)
         if: always()
