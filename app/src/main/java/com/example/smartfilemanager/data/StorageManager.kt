@@ -32,18 +32,23 @@ class StorageManager @Inject constructor(
     suspend fun getCategorySummaries(): OperationResult<List<CategorySummary>> =
         withContext(ioDispatcher) {
             safeFileOperation("Depolama taranamadı") {
-                val root = Environment.getExternalStorageDirectory()
                 val counters = mutableMapOf<FileCategory, Pair<Int, Long>>()
 
-                if (root.exists() && root.canRead()) {
-                    root.walkTopDown()
-                        .onEnter { dir -> !dir.name.startsWith(".") }
-                        .filter { it.isFile }
-                        .forEach { file ->
-                            val category = MimeTypeHelper.getCategory(file.name, isDirectory = false)
-                            val current = counters[category] ?: (0 to 0L)
-                            counters[category] = (current.first + 1) to (current.second + file.length())
+                // Tarama en fazla 8 saniye sürsün; bu süreyi aşarsa o ana kadar sayılanlarla devam edilir.
+                // Böylece hiçbir zaman ana sayfa sonsuza kadar "yükleniyor" durumunda kalmaz.
+                kotlinx.coroutines.withTimeoutOrNull(8_000L) {
+                    getCommonDirectories().values.distinctBy { it.absolutePath }.forEach { directory ->
+                        if (directory.exists() && directory.canRead()) {
+                            directory.walkTopDown()
+                                .onEnter { dir -> !dir.name.startsWith(".") }
+                                .filter { it.isFile }
+                                .forEach { file ->
+                                    val category = MimeTypeHelper.getCategory(file.name, isDirectory = false)
+                                    val current = counters[category] ?: (0 to 0L)
+                                    counters[category] = (current.first + 1) to (current.second + file.length())
+                                }
                         }
+                    }
                 }
 
                 FileCategory.entries
