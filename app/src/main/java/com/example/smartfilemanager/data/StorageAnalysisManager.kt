@@ -11,7 +11,6 @@ import com.example.smartfilemanager.util.HashCalculator
 import com.example.smartfilemanager.util.MimeTypeHelper
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -20,11 +19,11 @@ import javax.inject.Singleton
  * Depolama analizini (en büyük dosyalar, yinelenen dosyalar, boş klasörler) yürütür.
  *
  * ÖNEMLİ: Tüm tarama, [StorageManager.getCommonDirectories] ile sınırlı klasörlerde
- * (DCIM/Pictures/Movies/Music/Documents/Download) yapılır ve toplam [SCAN_TIMEOUT_MS]
- * ile sınırlanır — cihazın tüm depolama alanını (Android/data, önbellek vb. dahil)
- * taramak, çok sayıda dosyası olan gerçek cihazlarda dakikalarca sürebilir ve arayüzün
- * sonsuza kadar "yükleniyor" durumunda kalmasına yol açar. Zaman aşımında o ana kadar
- * toplanan sonuçlar (kısmi de olsa) döndürülür; asla sonsuz beklemeye izin verilmez.
+ * (DCIM/Pictures/Movies/Music/Documents/Download) yapılır. withTimeoutOrNull kullanılmıyor
+ * çünkü senkron/CPU-bağımlı sıkı döngüleri kesemiyor (cooperative cancellation yalnızca
+ * suspend noktalarında çalışır) — bunun yerine SAYIYA dayalı sabit bir üst sınır
+ * ([MAX_FILES_TO_SCAN]) kullanılıyor; bu, döngünün kaç dosya bulunursa bulunsun kesin
+ * olarak duracağını garanti eder ve arayüzün sonsuza kadar "yükleniyor" kalmasını önler.
  */
 @Singleton
 class StorageAnalysisManager @Inject constructor(
@@ -32,7 +31,7 @@ class StorageAnalysisManager @Inject constructor(
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) {
     companion object {
-        private const val SCAN_TIMEOUT_MS = 20_000L
+        private const val MAX_FILES_TO_SCAN = 15_000
         private const val MAX_LARGEST_FILES = 30
         private const val MAX_HASH_CANDIDATES = 300
     }
@@ -42,23 +41,31 @@ class StorageAnalysisManager @Inject constructor(
             safeFileOperation("Depolama analizi başarısız oldu") {
                 val allFiles = mutableListOf<File>()
                 val emptyFolders = mutableListOf<EmptyFolderEntry>()
+                var scannedCount = 0
+                var truncated = false
 
-                val completed = withTimeoutOrNull(SCAN_TIMEOUT_MS) {
-                    storageManager.getCommonDirectories().values.distinctBy { it.absolutePath }.forEach { root ->
-                        if (!root.exists() || !root.canRead()) return@forEach
-                        root.walkTopDown()
-                            .onEnter { dir -> !dir.name.startsWith(".") }
-                            .forEach { entry ->
-                                if (entry.isDirectory) {
-                                    if (entry.absolutePath != root.absolutePath && entry.listFiles()?.isEmpty() == true) {
-                                        emptyFolders += EmptyFolderEntry(entry.absolutePath)
-                                    }
-                                } else {
-                                    allFiles += entry
-                                }
+                outer@ for (root in storageManager.getCommonDirectories().values.distinctBy { it.absolutePath }) {
+                    if (!root.exists() || !root.canRead()) continue
+
+                    val iterator = root.walkTopDown()
+                        .onEnter { dir -> !dir.name.startsWith(".") }
+                        .iterator()
+
+                    while (iterator.hasNext()) {
+                        val entry = iterator.next()
+                        if (entry.isDirectory) {
+                            if (entry.absolutePath != root.absolutePath && entry.listFiles()?.isEmpty() == true) {
+                                emptyFolders += EmptyFolderEntry(entry.absolutePath)
                             }
+                        } else {
+                            allFiles += entry
+                            scannedCount++
+                            if (scannedCount >= MAX_FILES_TO_SCAN) {
+                                truncated = true
+                                break@outer
+                            }
+                        }
                     }
-                    true
                 }
 
                 val categorySummaries = buildCategorySummaries(allFiles)
@@ -67,16 +74,14 @@ class StorageAnalysisManager @Inject constructor(
                     .take(MAX_LARGEST_FILES)
                     .map { LargeFileEntry(it.absolutePath, it.name, it.length()) }
 
-                val duplicateGroups = withTimeoutOrNull(SCAN_TIMEOUT_MS) {
-                    findDuplicates(allFiles)
-                } ?: emptyList()
+                val duplicateGroups = findDuplicates(allFiles)
 
                 StorageAnalysisResult(
                     categorySummaries = categorySummaries,
                     largestFiles = largestFiles,
                     duplicateGroups = duplicateGroups,
                     emptyFolders = emptyFolders,
-                    scanTruncated = completed == null
+                    scanTruncated = truncated
                 )
             }
         }

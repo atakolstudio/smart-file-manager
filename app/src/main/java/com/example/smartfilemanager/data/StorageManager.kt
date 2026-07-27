@@ -23,6 +23,10 @@ class StorageManager @Inject constructor(
     @ApplicationContext private val context: Context,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) {
+    companion object {
+        /** Tek bir taramada incelenecek azami dosya sayısı — cihazda ne kadar dosya olursa olsun tarama bu sayıda kesin olarak durur. */
+        private const val MAX_FILES_PER_SCAN = 15_000
+    }
 
     /**
      * Yaygın kullanıcı klasörlerini (DCIM, Pictures, Movies, Music, Documents, Download)
@@ -33,21 +37,29 @@ class StorageManager @Inject constructor(
         withContext(ioDispatcher) {
             safeFileOperation("Depolama taranamadı") {
                 val counters = mutableMapOf<FileCategory, Pair<Int, Long>>()
+                var scannedCount = 0
 
-                // Tarama en fazla 8 saniye sürsün; bu süreyi aşarsa o ana kadar sayılanlarla devam edilir.
-                // Böylece hiçbir zaman ana sayfa sonsuza kadar "yükleniyor" durumunda kalmaz.
-                kotlinx.coroutines.withTimeoutOrNull(8_000L) {
-                    getCommonDirectories().values.distinctBy { it.absolutePath }.forEach { directory ->
-                        if (directory.exists() && directory.canRead()) {
-                            directory.walkTopDown()
-                                .onEnter { dir -> !dir.name.startsWith(".") }
-                                .filter { it.isFile }
-                                .forEach { file ->
-                                    val category = MimeTypeHelper.getCategory(file.name, isDirectory = false)
-                                    val current = counters[category] ?: (0 to 0L)
-                                    counters[category] = (current.first + 1) to (current.second + file.length())
-                                }
-                        }
+                // withTimeoutOrNull, senkron/CPU-bağımlı sıkı döngüleri kesemez (cooperative
+                // cancellation yalnızca suspend noktalarında çalışır). Bu yüzden burada gerçek
+                // bir garanti için SAYIYA dayalı sabit bir üst sınır kullanıyoruz: döngü, kaç
+                // dosya bulunursa bulunsun MAX_FILES_PER_SCAN sonrası kesin olarak durur.
+                outer@ for (directory in getCommonDirectories().values.distinctBy { it.absolutePath }) {
+                    if (!directory.exists() || !directory.canRead()) continue
+
+                    val iterator = directory.walkTopDown()
+                        .onEnter { dir -> !dir.name.startsWith(".") }
+                        .iterator()
+
+                    while (iterator.hasNext()) {
+                        val entry = iterator.next()
+                        if (!entry.isFile) continue
+
+                        val category = MimeTypeHelper.getCategory(entry.name, isDirectory = false)
+                        val current = counters[category] ?: (0 to 0L)
+                        counters[category] = (current.first + 1) to (current.second + entry.length())
+
+                        scannedCount++
+                        if (scannedCount >= MAX_FILES_PER_SCAN) break@outer
                     }
                 }
 
