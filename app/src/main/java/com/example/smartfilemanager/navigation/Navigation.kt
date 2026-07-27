@@ -31,6 +31,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.smartfilemanager.R
 import com.example.smartfilemanager.ui.screens.apps.AppsScreen
+import com.example.smartfilemanager.ui.screens.analysis.StorageAnalysisScreen
 import com.example.smartfilemanager.ui.screens.favorites.FavoritesScreen
 import com.example.smartfilemanager.ui.screens.files.FilesScreen
 import com.example.smartfilemanager.ui.screens.home.HomeScreen
@@ -140,7 +141,8 @@ fun SmartFileManagerNavHost(
 
             composable(Screen.Settings.route) {
                 SettingsScreen(
-                    onNavigateToRecycleBin = { navController.navigate(Screen.RecycleBin.route) }
+                    onNavigateToRecycleBin = { navController.navigate(Screen.RecycleBin.route) },
+                    onNavigateToStorageAnalysis = { navController.navigate(Screen.StorageAnalysis.route) }
                 )
             }
 
@@ -150,6 +152,10 @@ fun SmartFileManagerNavHost(
 
             composable(Screen.Apps.route) {
                 AppsScreen(onBack = { navController.popBackStack() })
+            }
+
+            composable(Screen.StorageAnalysis.route) {
+                StorageAnalysisScreen(onBack = { navController.popBackStack() })
             }
         }
     }

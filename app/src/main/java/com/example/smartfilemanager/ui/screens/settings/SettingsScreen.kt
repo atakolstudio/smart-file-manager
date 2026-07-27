@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -30,6 +31,7 @@ import com.example.smartfilemanager.R
 @Composable
 fun SettingsScreen(
     onNavigateToRecycleBin: () -> Unit = {},
+    onNavigateToStorageAnalysis: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Scaffold(
@@ -39,6 +41,12 @@ fun SettingsScreen(
         }
     ) { paddingValues ->
         Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
+            SettingsRow(
+                icon = Icons.Filled.BarChart,
+                title = "Depolama Analizi",
+                subtitle = "Yinelenen dosyalar, en büyük dosyalar, boş klasörler",
+                onClick = onNavigateToStorageAnalysis
+            )
             SettingsRow(
                 icon = Icons.Filled.DeleteSweep,
                 title = "Geri Dönüşüm Kutusu",
