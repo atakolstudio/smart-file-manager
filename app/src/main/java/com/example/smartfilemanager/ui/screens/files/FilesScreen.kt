@@ -2,6 +2,8 @@ package com.example.smartfilemanager.ui.screens.files
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,12 +26,15 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.FolderZip
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.NoteAdd
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Sort
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -93,6 +98,8 @@ fun FilesScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val fileInfo by viewModel.fileInfo.collectAsStateWithLifecycle()
+    val hashResult by viewModel.hashResult.collectAsStateWithLifecycle()
+    val isComputingHash by viewModel.isComputingHash.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
 
@@ -100,6 +107,7 @@ fun FilesScreen(
     var showSortMenu by remember { mutableStateOf(false) }
     var showNewFolderDialog by remember { mutableStateOf(false) }
     var showNewFileDialog by remember { mutableStateOf(false) }
+    var showCompressDialog by remember { mutableStateOf(false) }
     var showFabMenu by remember { mutableStateOf(false) }
     var renameTarget by remember { mutableStateOf<FileItem?>(null) }
     var deleteTarget by remember { mutableStateOf<FileItem?>(null) }
@@ -127,7 +135,8 @@ fun FilesScreen(
                     onSelectAll = viewModel::selectAll,
                     onCopy = viewModel::copySelectionToClipboard,
                     onCut = viewModel::cutSelectionToClipboard,
-                    onDelete = viewModel::deleteSelected
+                    onDelete = viewModel::deleteSelected,
+                    onCompress = { showCompressDialog = true }
                 )
                 isSearchActive -> SearchTopBar(
                     query = uiState.searchQuery,
@@ -186,6 +195,7 @@ fun FilesScreen(
                     else -> FileList(
                         items = uiState.displayedItems,
                         selectedPaths = uiState.selectedPaths,
+                        favoritePaths = uiState.favoritePaths,
                         isSelectionMode = uiState.isSelectionMode,
                         onItemClick = { item ->
                             when {
@@ -199,7 +209,9 @@ fun FilesScreen(
                         onRenameClick = { item -> renameTarget = item },
                         onDeleteClick = { item -> deleteTarget = item },
                         onInfoClick = { item -> viewModel.loadFileInfo(item.path) },
-                        onOpenExternallyClick = { item -> viewModel.openExternally(item.path) }
+                        onOpenExternallyClick = { item -> viewModel.openExternally(item.path) },
+                        onToggleFavoriteClick = { item -> viewModel.toggleFavorite(item.path) },
+                        onExtractClick = { item -> viewModel.extractArchive(item.path) }
                     )
                 }
             }
@@ -252,8 +264,24 @@ fun FilesScreen(
         )
     }
 
+    if (showCompressDialog) {
+        NameInputDialog(
+            title = "Sıkıştır",
+            label = "Zip dosya adı",
+            initialValue = "arsiv",
+            onConfirm = { name -> viewModel.compressSelected(name); showCompressDialog = false },
+            onDismiss = { showCompressDialog = false }
+        )
+    }
+
     fileInfo?.let { info ->
-        FileInfoDialog(info = info, onDismiss = { viewModel.clearFileInfo() })
+        FileInfoDialog(
+            info = info,
+            hashResult = hashResult,
+            isComputingHash = isComputingHash,
+            onComputeHash = { algorithm -> viewModel.computeHash(info.path, algorithm) },
+            onDismiss = { viewModel.clearFileInfo() }
+        )
     }
 }
 
@@ -337,7 +365,8 @@ private fun SelectionTopBar(
     onSelectAll: () -> Unit,
     onCopy: () -> Unit,
     onCut: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onCompress: () -> Unit
 ) {
     TopAppBar(
         title = { Text("$selectedCount seçildi") },
@@ -348,6 +377,7 @@ private fun SelectionTopBar(
             IconButton(onClick = onSelectAll) { Icon(Icons.Filled.Check, contentDescription = "Tümünü seç") }
             IconButton(onClick = onCopy) { Icon(Icons.Filled.ContentCopy, contentDescription = "Kopyala") }
             IconButton(onClick = onCut) { Icon(Icons.Filled.ContentCut, contentDescription = "Kes") }
+            IconButton(onClick = onCompress) { Icon(Icons.Filled.FolderZip, contentDescription = "Sıkıştır") }
             IconButton(onClick = onDelete) { Icon(Icons.Filled.Delete, contentDescription = "Sil") }
         }
     )
@@ -394,26 +424,32 @@ private fun EmptyMessage(message: String) {
 private fun FileList(
     items: List<FileItem>,
     selectedPaths: Set<String>,
+    favoritePaths: Set<String>,
     isSelectionMode: Boolean,
     onItemClick: (FileItem) -> Unit,
     onItemLongClick: (FileItem) -> Unit,
     onRenameClick: (FileItem) -> Unit,
     onDeleteClick: (FileItem) -> Unit,
     onInfoClick: (FileItem) -> Unit,
-    onOpenExternallyClick: (FileItem) -> Unit
+    onOpenExternallyClick: (FileItem) -> Unit,
+    onToggleFavoriteClick: (FileItem) -> Unit,
+    onExtractClick: (FileItem) -> Unit
 ) {
     LazyColumn(modifier = Modifier.fillMaxSize()) {
         items(items, key = { it.path }) { item ->
             FileRow(
                 item = item,
                 isSelected = selectedPaths.contains(item.path),
+                isFavorite = favoritePaths.contains(item.path),
                 isSelectionMode = isSelectionMode,
                 onClick = { onItemClick(item) },
                 onLongClick = { onItemLongClick(item) },
                 onRenameClick = { onRenameClick(item) },
                 onDeleteClick = { onDeleteClick(item) },
                 onInfoClick = { onInfoClick(item) },
-                onOpenExternallyClick = { onOpenExternallyClick(item) }
+                onOpenExternallyClick = { onOpenExternallyClick(item) },
+                onToggleFavoriteClick = { onToggleFavoriteClick(item) },
+                onExtractClick = { onExtractClick(item) }
             )
         }
     }
@@ -424,16 +460,20 @@ private fun FileList(
 private fun FileRow(
     item: FileItem,
     isSelected: Boolean,
+    isFavorite: Boolean,
     isSelectionMode: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     onRenameClick: () -> Unit,
     onDeleteClick: () -> Unit,
     onInfoClick: () -> Unit,
-    onOpenExternallyClick: () -> Unit
+    onOpenExternallyClick: () -> Unit,
+    onToggleFavoriteClick: () -> Unit,
+    onExtractClick: () -> Unit
 ) {
     var showMenu by remember { mutableStateOf(false) }
     val category = MimeTypeHelper.getCategory(item.name, item.isDirectory)
+    val isZip = item.extension.equals("zip", ignoreCase = true)
 
     Row(
         modifier = Modifier
@@ -460,7 +500,23 @@ private fun FileRow(
         )
 
         Column(modifier = Modifier.padding(start = 16.dp).weight(1f)) {
-            Text(text = item.name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = item.name,
+                    style = MaterialTheme.typography.bodyLarge,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+                if (isFavorite) {
+                    Icon(
+                        imageVector = Icons.Filled.Star,
+                        contentDescription = "Favori",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(start = 4.dp).size(14.dp)
+                    )
+                }
+            }
             val subtitle = if (item.isDirectory) "Klasör" else SizeFormatter.format(item.sizeBytes)
             Text(text = subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
@@ -472,10 +528,27 @@ private fun FileRow(
                 }
                 DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
                     DropdownMenuItem(
+                        text = { Text(if (isFavorite) "Favorilerden Çıkar" else "Favorilere Ekle") },
+                        leadingIcon = {
+                            Icon(
+                                if (isFavorite) Icons.Filled.Star else Icons.Outlined.StarBorder,
+                                contentDescription = null
+                            )
+                        },
+                        onClick = { showMenu = false; onToggleFavoriteClick() }
+                    )
+                    DropdownMenuItem(
                         text = { Text("Yeniden Adlandır") },
                         leadingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) },
                         onClick = { showMenu = false; onRenameClick() }
                     )
+                    if (isZip) {
+                        DropdownMenuItem(
+                            text = { Text("Çıkart") },
+                            leadingIcon = { Icon(Icons.Filled.FolderZip, contentDescription = null) },
+                            onClick = { showMenu = false; onExtractClick() }
+                        )
+                    }
                     if (!item.isDirectory) {
                         DropdownMenuItem(
                             text = { Text("Harici Uygulamada Aç") },
@@ -529,12 +602,18 @@ private fun NameInputDialog(
 }
 
 @Composable
-private fun FileInfoDialog(info: com.example.smartfilemanager.model.FileInfo, onDismiss: () -> Unit) {
+private fun FileInfoDialog(
+    info: com.example.smartfilemanager.model.FileInfo,
+    hashResult: String?,
+    isComputingHash: Boolean,
+    onComputeHash: (com.example.smartfilemanager.util.HashAlgorithm) -> Unit,
+    onDismiss: () -> Unit
+) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Dosya Bilgisi") },
         text = {
-            Column {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                 InfoRow("Ad", info.name)
                 InfoRow("Yol", info.path)
                 InfoRow("Tür", if (info.isDirectory) "Klasör" else (info.mimeType ?: "Bilinmiyor"))
@@ -548,6 +627,30 @@ private fun FileInfoDialog(info: com.example.smartfilemanager.model.FileInfo, on
                     append(if (info.canWrite) "Yazılabilir " else "")
                     append(if (info.canExecute) "Çalıştırılabilir" else "")
                 }.ifBlank { "Yok" })
+
+                if (!info.isDirectory) {
+                    Spacer(modifier = Modifier.padding(top = 12.dp))
+                    Text(text = "Özet (Hash)", style = MaterialTheme.typography.titleMedium)
+                    Spacer(modifier = Modifier.padding(top = 4.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        com.example.smartfilemanager.util.HashAlgorithm.entries.forEach { algorithm ->
+                            androidx.compose.material3.AssistChip(
+                                onClick = { onComputeHash(algorithm) },
+                                label = { Text(algorithm.label) },
+                                enabled = !isComputingHash
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.padding(top = 8.dp))
+                    when {
+                        isComputingHash -> androidx.compose.material3.LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        hashResult != null -> Text(
+                            text = hashResult,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
             }
         },
         confirmButton = {

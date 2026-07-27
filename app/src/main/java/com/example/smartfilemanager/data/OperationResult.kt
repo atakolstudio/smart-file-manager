@@ -10,7 +10,7 @@ sealed class OperationResult<out T> {
     data class Error(val message: String, val throwable: Throwable? = null) : OperationResult<Nothing>()
 }
 
-inline fun <T> safeFileOperation(errorMessage: String, block: () -> T): OperationResult<T> {
+suspend inline fun <T> safeFileOperation(errorMessage: String, block: suspend () -> T): OperationResult<T> {
     return try {
         OperationResult.Success(block())
     } catch (t: Throwable) {

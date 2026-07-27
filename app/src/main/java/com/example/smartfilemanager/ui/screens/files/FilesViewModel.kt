@@ -2,13 +2,17 @@ package com.example.smartfilemanager.ui.screens.files
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.smartfilemanager.data.ArchiveManager
 import com.example.smartfilemanager.data.ClipboardManager
 import com.example.smartfilemanager.data.ClipboardOperation
+import com.example.smartfilemanager.data.FavoritesManager
 import com.example.smartfilemanager.data.FileManager
 import com.example.smartfilemanager.data.FileOpener
 import com.example.smartfilemanager.data.OperationResult
+import com.example.smartfilemanager.data.RecycleBinManager
 import com.example.smartfilemanager.model.FileInfo
 import com.example.smartfilemanager.model.FileItem
+import com.example.smartfilemanager.util.HashAlgorithm
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -28,6 +32,7 @@ data class FilesUiState(
     val searchQuery: String = "",
     val sortOption: SortOption = SortOption.NAME,
     val sortAscending: Boolean = true,
+    val favoritePaths: Set<String> = emptySet(),
     val errorMessage: String? = null,
     val infoMessage: String? = null,
     val hasClipboardContent: Boolean = false,
@@ -59,15 +64,18 @@ data class FilesUiState(
 }
 
 /**
- * Klasör içeriğini listeler ve Aşama 3+4 kapsamındaki tüm dosya işlemlerini
- * (kopyala/kes/yapıştır/sil/yeniden adlandır/yeni klasör, çoklu seçim, arama, sıralama,
- * harici uygulamada açma, dosya bilgisi) yönetir.
+ * Klasör içeriğini listeler ve tüm dosya işlemlerini yönetir: kopyala/kes/yapıştır/sil
+ * (çöp kutusuna taşıyarak)/yeniden adlandır/yeni klasör, çoklu seçim, arama, sıralama,
+ * favoriler, sıkıştırma/çıkartma, özet (hash) hesaplama, harici uygulamada açma, dosya bilgisi.
  */
 @HiltViewModel
 class FilesViewModel @Inject constructor(
     private val fileManager: FileManager,
     private val clipboardManager: ClipboardManager,
-    private val fileOpener: FileOpener
+    private val fileOpener: FileOpener,
+    private val favoritesManager: FavoritesManager,
+    private val recycleBinManager: RecycleBinManager,
+    private val archiveManager: ArchiveManager
 ) : ViewModel() {
 
     private val _currentPath = MutableStateFlow<String?>(null)
@@ -83,9 +91,16 @@ class FilesViewModel @Inject constructor(
     private val _fileInfo = MutableStateFlow<FileInfo?>(null)
     val fileInfo: StateFlow<FileInfo?> = _fileInfo
 
+    private val _hashResult = MutableStateFlow<String?>(null)
+    val hashResult: StateFlow<String?> = _hashResult
+
+    private val _isComputingHash = MutableStateFlow(false)
+    val isComputingHash: StateFlow<Boolean> = _isComputingHash
+
     val uiState: StateFlow<FilesUiState> = combine(
         _currentPath, _isLoading, _items, _selectedPaths, _searchQuery,
-        _sortOption, _sortAscending, _errorMessage, _infoMessage, clipboardManager.state
+        _sortOption, _sortAscending, _errorMessage, _infoMessage,
+        clipboardManager.state, favoritesManager.favoritePaths
     ) { values ->
         val currentPath = values[0] as String?
         val isLoading = values[1] as Boolean
@@ -99,6 +114,8 @@ class FilesViewModel @Inject constructor(
         val errorMessage = values[7] as String?
         val infoMessage = values[8] as String?
         val clipboard = values[9] as com.example.smartfilemanager.data.ClipboardState?
+        @Suppress("UNCHECKED_CAST")
+        val favoritePaths = values[10] as Set<String>
 
         FilesUiState(
             currentPath = currentPath,
@@ -108,6 +125,7 @@ class FilesViewModel @Inject constructor(
             searchQuery = searchQuery,
             sortOption = sortOption,
             sortAscending = sortAscending,
+            favoritePaths = favoritePaths,
             errorMessage = errorMessage,
             infoMessage = infoMessage,
             hasClipboardContent = clipboard != null,
@@ -145,17 +163,9 @@ class FilesViewModel @Inject constructor(
 
     // --- Arama / Sıralama ---
 
-    fun setSearchQuery(query: String) {
-        _searchQuery.value = query
-    }
-
-    fun setSortOption(option: SortOption) {
-        _sortOption.value = option
-    }
-
-    fun toggleSortDirection() {
-        _sortAscending.value = !_sortAscending.value
-    }
+    fun setSearchQuery(query: String) { _searchQuery.value = query }
+    fun setSortOption(option: SortOption) { _sortOption.value = option }
+    fun toggleSortDirection() { _sortAscending.value = !_sortAscending.value }
 
     // --- Çoklu seçim ---
 
@@ -164,13 +174,8 @@ class FilesViewModel @Inject constructor(
         _selectedPaths.value = if (current.contains(path)) current - path else current + path
     }
 
-    fun selectAll() {
-        _selectedPaths.value = _items.value.map { it.path }.toSet()
-    }
-
-    fun clearSelection() {
-        _selectedPaths.value = emptySet()
-    }
+    fun selectAll() { _selectedPaths.value = _items.value.map { it.path }.toSet() }
+    fun clearSelection() { _selectedPaths.value = emptySet() }
 
     // --- Kopyala / Kes / Yapıştır ---
 
@@ -203,7 +208,7 @@ class FilesViewModel @Inject constructor(
         }
     }
 
-    // --- Sil / Yeniden adlandır / Oluştur ---
+    // --- Sil (çöp kutusuna taşı) / Yeniden adlandır / Oluştur ---
 
     fun deleteSelected() {
         val paths = _selectedPaths.value
@@ -211,21 +216,21 @@ class FilesViewModel @Inject constructor(
         viewModelScope.launch {
             var lastError: String? = null
             paths.forEach { path ->
-                val result = fileManager.delete(path)
+                val result = recycleBinManager.moveToTrash(path)
                 if (result is OperationResult.Error) lastError = result.message
             }
             clearSelection()
             _errorMessage.value = lastError
-            _infoMessage.value = if (lastError == null) "Silindi" else null
+            _infoMessage.value = if (lastError == null) "Çöp kutusuna taşındı" else null
             refresh()
         }
     }
 
     fun deleteSingle(path: String) {
         viewModelScope.launch {
-            when (val result = fileManager.delete(path)) {
+            when (val result = recycleBinManager.moveToTrash(path)) {
                 is OperationResult.Success -> {
-                    _infoMessage.value = "Silindi"
+                    _infoMessage.value = "Çöp kutusuna taşındı"
                     refresh()
                 }
                 is OperationResult.Error -> _errorMessage.value = result.message
@@ -268,7 +273,7 @@ class FilesViewModel @Inject constructor(
         }
     }
 
-    // --- Harici açma / Dosya bilgisi ---
+    // --- Harici açma / Dosya bilgisi / Hash ---
 
     fun openExternally(path: String) {
         when (val result = fileOpener.openWithExternalApp(path)) {
@@ -278,6 +283,7 @@ class FilesViewModel @Inject constructor(
     }
 
     fun loadFileInfo(path: String) {
+        _hashResult.value = null
         viewModelScope.launch {
             when (val result = fileManager.getFileInfo(path)) {
                 is OperationResult.Success -> _fileInfo.value = result.data
@@ -288,6 +294,60 @@ class FilesViewModel @Inject constructor(
 
     fun clearFileInfo() {
         _fileInfo.value = null
+        _hashResult.value = null
+    }
+
+    fun computeHash(path: String, algorithm: HashAlgorithm) {
+        viewModelScope.launch {
+            _isComputingHash.value = true
+            _hashResult.value = null
+            when (val result = fileManager.calculateHash(path, algorithm)) {
+                is OperationResult.Success -> _hashResult.value = result.data
+                is OperationResult.Error -> _errorMessage.value = result.message
+            }
+            _isComputingHash.value = false
+        }
+    }
+
+    // --- Favoriler ---
+
+    fun toggleFavorite(path: String) {
+        viewModelScope.launch { favoritesManager.toggleFavorite(path) }
+    }
+
+    // --- Sıkıştırma / Çıkartma ---
+
+    fun compressSelected(zipName: String) {
+        val destinationDir = _currentPath.value ?: return
+        val paths = _selectedPaths.value.toList()
+        if (paths.isEmpty()) return
+        val fileName = if (zipName.endsWith(".zip", ignoreCase = true)) zipName else "$zipName.zip"
+        viewModelScope.launch {
+            val destinationPath = "$destinationDir/$fileName"
+            when (val result = archiveManager.compress(paths, destinationPath)) {
+                is OperationResult.Success -> {
+                    _infoMessage.value = "Sıkıştırıldı: $fileName"
+                    clearSelection()
+                    refresh()
+                }
+                is OperationResult.Error -> _errorMessage.value = result.message
+            }
+        }
+    }
+
+    fun extractArchive(path: String) {
+        val parentDir = _currentPath.value ?: return
+        val folderName = path.substringAfterLast('/').substringBeforeLast('.')
+        viewModelScope.launch {
+            val destinationPath = "$parentDir/$folderName"
+            when (val result = archiveManager.extract(path, destinationPath)) {
+                is OperationResult.Success -> {
+                    _infoMessage.value = "Çıkartıldı: $folderName"
+                    refresh()
+                }
+                is OperationResult.Error -> _errorMessage.value = result.message
+            }
+        }
     }
 
     fun consumeMessages() {

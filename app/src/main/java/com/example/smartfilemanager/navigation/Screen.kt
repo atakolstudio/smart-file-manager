@@ -11,6 +11,8 @@ sealed class Screen(val route: String) {
     data object Preview : Screen("preview")
     data object Favorites : Screen("favorites")
     data object Settings : Screen("settings")
+    data object RecycleBin : Screen("recycle_bin")
+    data object Apps : Screen("apps")
 
     companion object {
         const val FILES_PATH_ARG = "path"

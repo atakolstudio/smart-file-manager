@@ -165,6 +165,13 @@ class FileManager @Inject constructor(
             }
         }
 
+    suspend fun calculateHash(path: String, algorithm: com.example.smartfilemanager.util.HashAlgorithm): OperationResult<String> =
+        withContext(ioDispatcher) {
+            safeFileOperation("Özet hesaplanamadı: $path") {
+                com.example.smartfilemanager.util.HashCalculator.calculate(File(path), algorithm)
+            }
+        }
+
     private fun copyRecursively(source: File, destination: File) {
         if (source.isDirectory) {
             if (!destination.exists()) destination.mkdirs()

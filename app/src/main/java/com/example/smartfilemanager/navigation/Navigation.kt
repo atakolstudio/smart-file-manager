@@ -30,10 +30,12 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.smartfilemanager.R
+import com.example.smartfilemanager.ui.screens.apps.AppsScreen
 import com.example.smartfilemanager.ui.screens.favorites.FavoritesScreen
 import com.example.smartfilemanager.ui.screens.files.FilesScreen
 import com.example.smartfilemanager.ui.screens.home.HomeScreen
 import com.example.smartfilemanager.ui.screens.preview.PreviewScreen
+import com.example.smartfilemanager.ui.screens.recyclebin.RecycleBinScreen
 import com.example.smartfilemanager.ui.screens.settings.SettingsScreen
 
 private data class BottomNavItem(
@@ -83,6 +85,9 @@ fun SmartFileManagerNavHost(
                     onNavigateToFolder = { path ->
                         navController.navigate(Screen.filesRouteWithPath(path))
                     },
+                    onNavigateToApps = {
+                        navController.navigate(Screen.Apps.route)
+                    },
                     onRequestPermission = onRequestPermission
                 )
             }
@@ -123,11 +128,28 @@ fun SmartFileManagerNavHost(
             }
 
             composable(Screen.Favorites.route) {
-                FavoritesScreen()
+                FavoritesScreen(
+                    onOpenFolder = { folderPath ->
+                        navController.navigate(Screen.filesRouteWithPath(folderPath))
+                    },
+                    onOpenPreview = { filePath ->
+                        navController.navigate(Screen.previewRouteWithPath(filePath))
+                    }
+                )
             }
 
             composable(Screen.Settings.route) {
-                SettingsScreen()
+                SettingsScreen(
+                    onNavigateToRecycleBin = { navController.navigate(Screen.RecycleBin.route) }
+                )
+            }
+
+            composable(Screen.RecycleBin.route) {
+                RecycleBinScreen(onBack = { navController.popBackStack() })
+            }
+
+            composable(Screen.Apps.route) {
+                AppsScreen(onBack = { navController.popBackStack() })
             }
         }
     }

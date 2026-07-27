@@ -18,8 +18,8 @@ class FileOpener @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
 
-    fun openWithExternalApp(path: String): OperationResult<Unit> =
-        safeFileOperation("Dosya açılamadı: $path") {
+    fun openWithExternalApp(path: String): OperationResult<Unit> {
+        return try {
             val file = File(path)
             val authority = "${context.packageName}.fileprovider"
             val uri = FileProvider.getUriForFile(context, authority, file)
@@ -36,5 +36,10 @@ class FileOpener @Inject constructor(
             }
 
             context.startActivity(intent)
+            OperationResult.Success(Unit)
+        } catch (t: Throwable) {
+            android.util.Log.e("SmartFileManager", "Dosya açılamadı: $path", t)
+            OperationResult.Error(t.message ?: "Dosya açılamadı", t)
         }
+    }
 }

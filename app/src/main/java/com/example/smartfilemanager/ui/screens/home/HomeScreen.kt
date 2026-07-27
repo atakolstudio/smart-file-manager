@@ -67,7 +67,8 @@ private data class HomeCategory(
     val icon: ImageVector,
     val color: Color,
     val fileCategory: FileCategory?,
-    val directoryLabel: String?
+    val directoryLabel: String?,
+    val isAppsShortcut: Boolean = false
 )
 
 private val homeCategories = listOf(
@@ -76,13 +77,14 @@ private val homeCategories = listOf(
     HomeCategory(R.string.home_category_music, Icons.Filled.Audiotrack, AudioColor, FileCategory.AUDIO, "Music"),
     HomeCategory(R.string.home_category_documents, Icons.Filled.Description, DocumentColor, FileCategory.DOCUMENT, "Documents"),
     HomeCategory(R.string.home_category_downloads, Icons.Filled.Download, DocumentColor, null, "Download"),
-    HomeCategory(R.string.home_category_apps, Icons.Filled.Apps, ApkColor, FileCategory.APK, null)
+    HomeCategory(R.string.home_category_apps, Icons.Filled.Apps, ApkColor, FileCategory.APK, null, isAppsShortcut = true)
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     onNavigateToFolder: (String) -> Unit,
+    onNavigateToApps: () -> Unit,
     onRequestPermission: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: HomeViewModel = hiltViewModel()
@@ -118,9 +120,13 @@ fun HomeScreen(
                 storageSummary = uiState.storageSummary,
                 categorySummaries = uiState.categorySummaries,
                 onCategoryClick = { category ->
-                    category.directoryLabel
-                        ?.let { viewModel.directoryPathFor(it) }
-                        ?.let(onNavigateToFolder)
+                    if (category.isAppsShortcut) {
+                        onNavigateToApps()
+                    } else {
+                        category.directoryLabel
+                            ?.let { viewModel.directoryPathFor(it) }
+                            ?.let(onNavigateToFolder)
+                    }
                 }
             )
         }
