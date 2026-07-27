@@ -85,6 +85,7 @@ class RecycleBinManager @Inject constructor(
                     val current = prefs[entriesKey] ?: emptySet()
                     prefs[entriesKey] = current + entry.encode()
                 }
+                Unit
             }
         }
 
@@ -119,6 +120,7 @@ class RecycleBinManager @Inject constructor(
             safeFileOperation("Çöp kutusu boşaltılamadı") {
                 trashDir.listFiles()?.forEach { it.deleteRecursively() }
                 context.recycleBinDataStore.edit { prefs -> prefs[entriesKey] = emptySet() }
+                Unit
             }
         }
 
