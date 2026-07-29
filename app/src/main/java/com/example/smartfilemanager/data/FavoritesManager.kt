@@ -41,4 +41,8 @@ class FavoritesManager @Inject constructor(
     }
 
     suspend fun isFavorite(path: String): Boolean = favoritePaths.first().contains(path)
+
+    suspend fun clearAll() {
+        context.favoritesDataStore.edit { prefs -> prefs[favoritesKey] = emptySet() }
+    }
 }

@@ -7,6 +7,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -14,6 +15,12 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import java.io.File
 
+/**
+ * NOT: Robolectric ortamında DataStore'un dosya sistemi durumu test sınıfı çalıştırmaları
+ * arasında (bazı yapılandırmalarda) kalıcı olabiliyor. Bu yüzden her testten önce
+ * [RecycleBinManager.emptyBin] ile durumu sıfırlıyoruz — testler birbirinden tamamen
+ * bağımsız (izole) olmalı, önceki bir testin bıraktığı duruma güvenmemeli.
+ */
 @RunWith(RobolectricTestRunner::class)
 class RecycleBinManagerTest {
 
@@ -22,6 +29,11 @@ class RecycleBinManagerTest {
 
     private val context = ApplicationProvider.getApplicationContext<android.app.Application>()
     private val recycleBinManager = RecycleBinManager(context, Dispatchers.IO)
+
+    @Before
+    fun clearState() = runBlocking {
+        recycleBinManager.emptyBin()
+    }
 
     @Test
     fun `moveToTrash removes the source file and records a trash entry`() = runBlocking {

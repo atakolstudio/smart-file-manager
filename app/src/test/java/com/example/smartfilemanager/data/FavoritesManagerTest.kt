@@ -5,15 +5,27 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
+/**
+ * NOT: Robolectric ortamında DataStore'un dosya sistemi durumu test sınıfı çalıştırmaları
+ * arasında (bazı yapılandırmalarda) kalıcı olabiliyor. Bu yüzden her testten önce
+ * [FavoritesManager.clearAll] ile durumu sıfırlıyoruz — testler birbirinden tamamen
+ * bağımsız (izole) olmalı, önceki bir testin bıraktığı duruma güvenmemeli.
+ */
 @RunWith(RobolectricTestRunner::class)
 class FavoritesManagerTest {
 
     private val context = ApplicationProvider.getApplicationContext<android.app.Application>()
     private val favoritesManager = FavoritesManager(context)
+
+    @Before
+    fun clearState() = runBlocking {
+        favoritesManager.clearAll()
+    }
 
     @Test
     fun `a path is not a favorite by default`() = runBlocking {
