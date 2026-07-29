@@ -23,8 +23,10 @@ class FavoritesManagerTest {
     private val favoritesManager = FavoritesManager(context)
 
     @Before
-    fun clearState() = runBlocking {
-        favoritesManager.clearAll()
+    fun clearState() {
+        runBlocking {
+            favoritesManager.clearAll()
+        }
     }
 
     @Test

@@ -31,8 +31,10 @@ class RecycleBinManagerTest {
     private val recycleBinManager = RecycleBinManager(context, Dispatchers.IO)
 
     @Before
-    fun clearState() = runBlocking {
-        recycleBinManager.emptyBin()
+    fun clearState() {
+        runBlocking {
+            recycleBinManager.emptyBin()
+        }
     }
 
     @Test
