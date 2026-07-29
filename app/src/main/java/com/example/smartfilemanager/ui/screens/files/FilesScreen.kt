@@ -30,7 +30,7 @@ import androidx.compose.material.icons.filled.FolderZip
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.NoteAdd
-import androidx.compose.material.icons.filled.OpenInNew
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.filled.Star
@@ -552,7 +552,7 @@ private fun FileRow(
                     if (!item.isDirectory) {
                         DropdownMenuItem(
                             text = { Text("Harici Uygulamada Aç") },
-                            leadingIcon = { Icon(Icons.Filled.OpenInNew, contentDescription = null) },
+                            leadingIcon = { Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null) },
                             onClick = { showMenu = false; onOpenExternallyClick() }
                         )
                     }

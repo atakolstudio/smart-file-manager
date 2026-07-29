@@ -9,7 +9,8 @@ import java.util.Locale
  */
 object DateUtils {
 
-    private val displayFormat = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale("tr", "TR"))
+    private val turkishLocale: Locale = Locale.Builder().setLanguage("tr").setRegion("TR").build()
+    private val displayFormat = SimpleDateFormat("dd.MM.yyyy HH:mm", turkishLocale)
 
     fun formatTimestamp(timestampMillis: Long): String {
         return displayFormat.format(Date(timestampMillis))
