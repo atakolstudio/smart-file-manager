@@ -22,8 +22,10 @@ import javax.inject.Singleton
  * (DCIM/Pictures/Movies/Music/Documents/Download) yapılır. withTimeoutOrNull kullanılmıyor
  * çünkü senkron/CPU-bağımlı sıkı döngüleri kesemiyor (cooperative cancellation yalnızca
  * suspend noktalarında çalışır) — bunun yerine SAYIYA dayalı sabit bir üst sınır
- * ([MAX_FILES_TO_SCAN]) kullanılıyor; bu, döngünün kaç dosya bulunursa bulunsun kesin
- * olarak duracağını garanti eder ve arayüzün sonsuza kadar "yükleniyor" kalmasını önler.
+ * ([MAX_ENTRIES_TO_SCAN]) kullanılıyor. Sayaç, dosya VE klasör dahil her ziyaret edilen
+ * düğümde artırılır — yalnızca dosyalarda artsaydı, bir sembolik link döngüsü sonsuz
+ * sayıda KLASÖR üretip sayacı hiç tetiklemeden taramayı sonsuza kadar sürdürebilirdi.
+ * maxDepth ikinci, bağımsız bir güvenlik katmanıdır.
  */
 @Singleton
 class StorageAnalysisManager @Inject constructor(
@@ -31,7 +33,8 @@ class StorageAnalysisManager @Inject constructor(
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) {
     companion object {
-        private const val MAX_FILES_TO_SCAN = 15_000
+        private const val MAX_ENTRIES_TO_SCAN = 20_000
+        private const val MAX_SCAN_DEPTH = 20
         private const val MAX_LARGEST_FILES = 30
         private const val MAX_HASH_CANDIDATES = 300
     }
@@ -41,7 +44,7 @@ class StorageAnalysisManager @Inject constructor(
             safeFileOperation("Depolama analizi başarısız oldu") {
                 val allFiles = mutableListOf<File>()
                 val emptyFolders = mutableListOf<EmptyFolderEntry>()
-                var scannedCount = 0
+                var visitedCount = 0
                 var truncated = false
 
                 outer@ for (root in storageManager.getCommonDirectories().values.distinctBy { it.absolutePath }) {
@@ -49,21 +52,24 @@ class StorageAnalysisManager @Inject constructor(
 
                     val iterator = root.walkTopDown()
                         .onEnter { dir -> !dir.name.startsWith(".") }
+                        .maxDepth(MAX_SCAN_DEPTH)
                         .iterator()
 
                     while (iterator.hasNext()) {
                         val entry = iterator.next()
+
+                        visitedCount++
+                        if (visitedCount >= MAX_ENTRIES_TO_SCAN) {
+                            truncated = true
+                            break@outer
+                        }
+
                         if (entry.isDirectory) {
                             if (entry.absolutePath != root.absolutePath && entry.listFiles()?.isEmpty() == true) {
                                 emptyFolders += EmptyFolderEntry(entry.absolutePath)
                             }
                         } else {
                             allFiles += entry
-                            scannedCount++
-                            if (scannedCount >= MAX_FILES_TO_SCAN) {
-                                truncated = true
-                                break@outer
-                            }
                         }
                     }
                 }

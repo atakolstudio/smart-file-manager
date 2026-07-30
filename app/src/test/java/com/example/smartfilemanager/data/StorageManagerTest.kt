@@ -66,4 +66,29 @@ class StorageManagerTest {
         assertTrue(result is OperationResult.Success)
         assertTrue((result as OperationResult.Success).data >= 0)
     }
+
+    @Test(timeout = 15_000)
+    fun `getCategorySummaries terminates even when a symlink cycle exists (regression test)`() = runBlocking {
+        // Gecmiste bir sembolik link donguesu, tarama donguesunu sonsuza kadar surdurebiliyordu
+        // (sayac sadece dosyalarda artiyordu, klasorlerde degil). Bu test tam olarak o senaryoyu
+        // simule eder ve taramanin gercekten sona erdigini dogrular.
+        val directories = storageManager.getCommonDirectories()
+        val downloadDir = directories.getValue("Download").apply { mkdirs() }
+        val loopDir = File(downloadDir, "loop_test_dir").apply { mkdirs() }
+
+        try {
+            java.nio.file.Files.createSymbolicLink(
+                File(loopDir, "back_to_self").toPath(),
+                loopDir.toPath()
+            )
+        } catch (e: java.io.IOException) {
+            // Bazi test ortamlari sembolik link olusturmaya izin vermeyebilir; boyle durumda
+            // bu testi anlamli bir sekilde calistiramayiz.
+            org.junit.Assume.assumeNoException(e)
+        }
+
+        val result = storageManager.getCategorySummaries()
+
+        assertTrue(result is OperationResult.Success)
+    }
 }

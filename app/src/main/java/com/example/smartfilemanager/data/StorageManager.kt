@@ -24,8 +24,11 @@ class StorageManager @Inject constructor(
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) {
     companion object {
-        /** Tek bir taramada incelenecek azami dosya sayısı — cihazda ne kadar dosya olursa olsun tarama bu sayıda kesin olarak durur. */
-        private const val MAX_FILES_PER_SCAN = 15_000
+        /** Tek bir taramada ziyaret edilecek azami düğüm (dosya+klasör) sayısı — bir sembolik link
+         * döngüsü gibi patolojik bir durumda bile tarama bu sayıda kesin olarak durur. */
+        private const val MAX_ENTRIES_PER_SCAN = 20_000
+        /** Ek güvenlik: klasör derinliğini de sınırla (sembolik link döngülerine karşı ikinci bir bariyer). */
+        private const val MAX_SCAN_DEPTH = 20
     }
 
     /**
@@ -37,29 +40,33 @@ class StorageManager @Inject constructor(
         withContext(ioDispatcher) {
             safeFileOperation("Depolama taranamadı") {
                 val counters = mutableMapOf<FileCategory, Pair<Int, Long>>()
-                var scannedCount = 0
+                var visitedCount = 0
 
                 // withTimeoutOrNull, senkron/CPU-bağımlı sıkı döngüleri kesemez (cooperative
                 // cancellation yalnızca suspend noktalarında çalışır). Bu yüzden burada gerçek
-                // bir garanti için SAYIYA dayalı sabit bir üst sınır kullanıyoruz: döngü, kaç
-                // dosya bulunursa bulunsun MAX_FILES_PER_SCAN sonrası kesin olarak durur.
+                // bir garanti için SAYIYA dayalı sabit bir üst sınır kullanıyoruz. ÖNEMLİ: sayaç
+                // her ziyaret edilen düğümde (klasör dahil) artmalı — yalnızca dosyalarda artarsa,
+                // bir sembolik link döngüsü sonsuz sayıda KLASÖR üretip sayacı hiç tetiklemeden
+                // döngüyü sonsuza kadar sürdürebilir. maxDepth ikinci bir bağımsız güvenlik katmanı.
                 outer@ for (directory in getCommonDirectories().values.distinctBy { it.absolutePath }) {
                     if (!directory.exists() || !directory.canRead()) continue
 
                     val iterator = directory.walkTopDown()
                         .onEnter { dir -> !dir.name.startsWith(".") }
+                        .maxDepth(MAX_SCAN_DEPTH)
                         .iterator()
 
                     while (iterator.hasNext()) {
                         val entry = iterator.next()
+
+                        visitedCount++
+                        if (visitedCount >= MAX_ENTRIES_PER_SCAN) break@outer
+
                         if (!entry.isFile) continue
 
                         val category = MimeTypeHelper.getCategory(entry.name, isDirectory = false)
                         val current = counters[category] ?: (0 to 0L)
                         counters[category] = (current.first + 1) to (current.second + entry.length())
-
-                        scannedCount++
-                        if (scannedCount >= MAX_FILES_PER_SCAN) break@outer
                     }
                 }
 

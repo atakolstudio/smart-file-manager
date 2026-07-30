@@ -57,4 +57,23 @@ class StorageAnalysisManagerTest {
         assertTrue(largest.isNotEmpty())
         assertEquals("big.txt", largest.first().name)
     }
+
+    @Test(timeout = 15_000)
+    fun `analyze terminates even when a symlink cycle exists (regression test)`() = runBlocking {
+        val documentsDir = storageManager.getCommonDirectories().getValue("Documents").apply { mkdirs() }
+        val loopDir = File(documentsDir, "loop_test_dir").apply { mkdirs() }
+
+        try {
+            java.nio.file.Files.createSymbolicLink(
+                File(loopDir, "back_to_self").toPath(),
+                loopDir.toPath()
+            )
+        } catch (e: java.io.IOException) {
+            org.junit.Assume.assumeNoException(e)
+        }
+
+        val result = analysisManager.analyze()
+
+        assertTrue(result is OperationResult.Success)
+    }
 }
