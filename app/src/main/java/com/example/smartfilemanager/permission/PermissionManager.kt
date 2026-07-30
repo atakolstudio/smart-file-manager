@@ -43,25 +43,18 @@ class PermissionManager @Inject constructor(
      * Tüm dosyalara erişim izninin (MANAGE_EXTERNAL_STORAGE) verilip verilmediğini kontrol eder.
      * Android 11 öncesi sürümlerde klasik izinlere bakar.
      *
-     * Bazı OEM ROM'larında (ör. MIUI/HyperOS) sistem ayarlarında anahtar açık göründüğü halde
-     * [Environment.isExternalStorageManager] bir süre eski değeri döndürebiliyor. Bu yüzden
-     * asıl dosya sistemine gerçekten erişilebiliyor mu diye ek bir kontrol yapıyoruz; ikisinden
-     * biri true dönerse izin var kabul ediyoruz.
+     * NOT: Daha önce burada, bazı OEM ROM'larında iznin gecikmeli yansıması ihtimaline karşı
+     * "gerçekten erişilebiliyor mu" diye ek bir dosya-sistemi kontrolü de vardı. O kontrol
+     * kaldırıldı çünkü YANLIŞ POZİTİF veriyordu: Android'in uyumluluk katmanı, MANAGE_EXTERNAL_STORAGE
+     * verilmemiş olsa bile depolama kökünün üst düzey klasör adlarını listelemeye izin verebiliyor
+     * (içerik erişimi kısıtlı kalsa da). Bu yüzden izin hiç verilmemişken bile true dönüyor ve
+     * izin ekranı hiç gösterilmiyordu. Doğru ve tek güvenilir kaynak, resmi Android API'sidir.
      */
     fun hasAllFilesAccess(): Boolean {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            Environment.isExternalStorageManager() || canActuallyAccessStorage()
+            Environment.isExternalStorageManager()
         } else {
             hasClassicStoragePermission()
-        }
-    }
-
-    private fun canActuallyAccessStorage(): Boolean {
-        return try {
-            val root = Environment.getExternalStorageDirectory()
-            root.canRead() && root.listFiles() != null
-        } catch (t: Throwable) {
-            false
         }
     }
 

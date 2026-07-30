@@ -3,6 +3,7 @@ package com.example.smartfilemanager.permission
 import android.os.Build
 import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -60,5 +61,16 @@ class PermissionManagerTest {
         val intent = permissionManager.createAppSettingsIntent()
         assertEquals(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, intent.action)
         assertEquals("package:${context.packageName}", intent.data.toString())
+    }
+
+    @Config(sdk = [Build.VERSION_CODES.R])
+    @Test
+    fun `hasAllFilesAccess is false by default on a fresh app (Android 11+) - regression test`() {
+        // Regresyon testi: daha önce burada dosya sistemine "gercekten erisilebiliyor mu" diye
+        // ek bir kontrol vardı ve bu, MANAGE_EXTERNAL_STORAGE hiç verilmemiş olsa bile true
+        // dönebiliyordu (Android'in uyumluluk katmani depolama kökünü listelemeye izin verdiği
+        // için). Bu, izin ekraninin hiç gösterilmemesine yol açiyordu. İzin verilmemiş taze bir
+        // uygulama kesinlikle false dönmelidir.
+        assertFalse(permissionManager.hasAllFilesAccess())
     }
 }
