@@ -29,6 +29,9 @@ class StorageManager @Inject constructor(
         private const val MAX_ENTRIES_PER_SCAN = 20_000
         /** Ek güvenlik: klasör derinliğini de sınırla (sembolik link döngülerine karşı ikinci bir bariyer). */
         private const val MAX_SCAN_DEPTH = 20
+        /** Her klasör için azami tarama süresi — bir klasör (ör. bulut senkronu olan sanal bir
+         * galeri klasörü) tek bir I/O çağrısında donarsa bile, o klasörden vazgeçilip devam edilir. */
+        private const val PER_DIRECTORY_TIMEOUT_MS = 5_000L
     }
 
     /**
@@ -42,32 +45,37 @@ class StorageManager @Inject constructor(
                 val counters = mutableMapOf<FileCategory, Pair<Int, Long>>()
                 var visitedCount = 0
 
-                // withTimeoutOrNull, senkron/CPU-bağımlı sıkı döngüleri kesemez (cooperative
-                // cancellation yalnızca suspend noktalarında çalışır). Bu yüzden burada gerçek
-                // bir garanti için SAYIYA dayalı sabit bir üst sınır kullanıyoruz. ÖNEMLİ: sayaç
-                // her ziyaret edilen düğümde (klasör dahil) artmalı — yalnızca dosyalarda artarsa,
-                // bir sembolik link döngüsü sonsuz sayıda KLASÖR üretip sayacı hiç tetiklemeden
-                // döngüyü sonsuza kadar sürdürebilir. maxDepth ikinci bir bağımsız güvenlik katmanı.
-                outer@ for (directory in getCommonDirectories().values.distinctBy { it.absolutePath }) {
+                for (directory in getCommonDirectories().values.distinctBy { it.absolutePath }) {
+                    if (visitedCount >= MAX_ENTRIES_PER_SCAN) break
                     if (!directory.exists() || !directory.canRead()) continue
 
-                    val iterator = directory.walkTopDown()
-                        .onEnter { dir -> !dir.name.startsWith(".") }
-                        .maxDepth(MAX_SCAN_DEPTH)
-                        .iterator()
+                    // ÖNEMLİ: Sadece sayıya dayalı bir sınır yeterli değil — eğer bir klasörün
+                    // (ör. bulut senkronlu sanal bir galeri klasörünün) İÇİNDEKİ TEK BİR I/O
+                    // çağrısı senkron olarak sonsuza kadar bloke olursa, döngü sayaca hiç
+                    // ulaşamadan durur. Bu yüzden her klasörü kendi zaman aşımı içinde,
+                    // runInterruptible ile çalıştırıyoruz: zaman aşımında arka plan iş parçacığına
+                    // gerçek bir kesme (Thread.interrupt) sinyali gönderilir ve bu klasörden
+                    // vazgeçilip bir sonrakine geçilir.
+                    kotlinx.coroutines.withTimeoutOrNull(PER_DIRECTORY_TIMEOUT_MS) {
+                        kotlinx.coroutines.runInterruptible {
+                            val iterator = directory.walkTopDown()
+                                .onEnter { dir -> !dir.name.startsWith(".") }
+                                .maxDepth(MAX_SCAN_DEPTH)
+                                .iterator()
 
-                    while (iterator.hasNext()) {
-                        val entry = iterator.next()
+                            while (iterator.hasNext() && visitedCount < MAX_ENTRIES_PER_SCAN) {
+                                val entry = iterator.next()
+                                visitedCount++
+                                if (!entry.isFile) continue
 
-                        visitedCount++
-                        if (visitedCount >= MAX_ENTRIES_PER_SCAN) break@outer
-
-                        if (!entry.isFile) continue
-
-                        val category = MimeTypeHelper.getCategory(entry.name, isDirectory = false)
-                        val current = counters[category] ?: (0 to 0L)
-                        counters[category] = (current.first + 1) to (current.second + entry.length())
+                                val category = MimeTypeHelper.getCategory(entry.name, isDirectory = false)
+                                val current = counters[category] ?: (0 to 0L)
+                                counters[category] = (current.first + 1) to (current.second + entry.length())
+                            }
+                        }
                     }
+                    // withTimeoutOrNull null dönse (zaman aşımı) bile buraya devam ediyoruz —
+                    // bu klasör atlanıp bir sonrakine geçilir, tüm tarama asla kilitlenmez.
                 }
 
                 FileCategory.entries

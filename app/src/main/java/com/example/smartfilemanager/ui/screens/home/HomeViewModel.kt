@@ -40,40 +40,60 @@ class HomeViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
+    private var refreshJob: kotlinx.coroutines.Job? = null
+
+    companion object {
+        /** Son çare üst sınır: hangi sebepten olursa olsun (beklenmedik bir donma dahil),
+         * ana sayfa asla bu süreden fazla "yükleniyor" durumunda kalmaz. */
+        private const val OVERALL_REFRESH_TIMEOUT_MS = 45_000L
+    }
+
     fun refresh() {
-        viewModelScope.launch {
+        // Önceki tarama hâlâ sürüyorsa iptal et — art arda tetiklenen (ör. hızlı ON_RESUME)
+        // çağrılar aynı anda birden fazla tarama başlatıp kaynak çekişmesine yol açmasın.
+        refreshJob?.cancel()
+        refreshJob = viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
 
-            val hasPermission = permissionManager.hasAllFilesAccess()
-            if (!hasPermission) {
-                _uiState.value = HomeUiState(isLoading = false, hasPermission = false)
-                return@launch
+            val completed = kotlinx.coroutines.withTimeoutOrNull(OVERALL_REFRESH_TIMEOUT_MS) {
+                val hasPermission = permissionManager.hasAllFilesAccess()
+                if (!hasPermission) {
+                    _uiState.value = HomeUiState(isLoading = false, hasPermission = false)
+                    return@withTimeoutOrNull
+                }
+
+                val (total, free) = storageManager.getTotalAndFreeBytes()
+                val storageSummary = StorageSummary(
+                    totalBytes = total,
+                    usedBytes = total - free,
+                    freeBytes = free
+                )
+
+                when (val result = storageManager.getCategorySummaries()) {
+                    is OperationResult.Success -> {
+                        _uiState.value = HomeUiState(
+                            isLoading = false,
+                            hasPermission = true,
+                            storageSummary = storageSummary,
+                            categorySummaries = result.data
+                        )
+                    }
+                    is OperationResult.Error -> {
+                        _uiState.value = HomeUiState(
+                            isLoading = false,
+                            hasPermission = true,
+                            storageSummary = storageSummary,
+                            errorMessage = result.message
+                        )
+                    }
+                }
             }
 
-            val (total, free) = storageManager.getTotalAndFreeBytes()
-            val storageSummary = StorageSummary(
-                totalBytes = total,
-                usedBytes = total - free,
-                freeBytes = free
-            )
-
-            when (val result = storageManager.getCategorySummaries()) {
-                is OperationResult.Success -> {
-                    _uiState.value = HomeUiState(
-                        isLoading = false,
-                        hasPermission = true,
-                        storageSummary = storageSummary,
-                        categorySummaries = result.data
-                    )
-                }
-                is OperationResult.Error -> {
-                    _uiState.value = HomeUiState(
-                        isLoading = false,
-                        hasPermission = true,
-                        storageSummary = storageSummary,
-                        errorMessage = result.message
-                    )
-                }
+            if (completed == null) {
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    errorMessage = "Tarama çok uzun sürdü, atlandı. Tekrar deneyebilirsiniz."
+                )
             }
         }
     }

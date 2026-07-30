@@ -19,13 +19,15 @@ import javax.inject.Singleton
  * Depolama analizini (en büyük dosyalar, yinelenen dosyalar, boş klasörler) yürütür.
  *
  * ÖNEMLİ: Tüm tarama, [StorageManager.getCommonDirectories] ile sınırlı klasörlerde
- * (DCIM/Pictures/Movies/Music/Documents/Download) yapılır. withTimeoutOrNull kullanılmıyor
- * çünkü senkron/CPU-bağımlı sıkı döngüleri kesemiyor (cooperative cancellation yalnızca
- * suspend noktalarında çalışır) — bunun yerine SAYIYA dayalı sabit bir üst sınır
- * ([MAX_ENTRIES_TO_SCAN]) kullanılıyor. Sayaç, dosya VE klasör dahil her ziyaret edilen
- * düğümde artırılır — yalnızca dosyalarda artsaydı, bir sembolik link döngüsü sonsuz
- * sayıda KLASÖR üretip sayacı hiç tetiklemeden taramayı sonsuza kadar sürdürebilirdi.
- * maxDepth ikinci, bağımsız bir güvenlik katmanıdır.
+ * (DCIM/Pictures/Movies/Music/Documents/Download) yapılır. Üç bağımsız güvenlik katmanı var:
+ * 1) SAYIYA dayalı üst sınır ([MAX_ENTRIES_TO_SCAN]) — dosya VE klasör dahil her ziyaret
+ *    edilen düğümde artar (bir sembolik link döngüsü sonsuz KLASÖR üretebileceği için).
+ * 2) [MAX_SCAN_DEPTH] ile klasör derinliği sınırı.
+ * 3) Her klasör kendi [PER_DIRECTORY_TIMEOUT_MS] süresiyle ve `runInterruptible` ile taranır —
+ *    bir klasör (ör. bulut senkronlu sanal bir galeri klasörü) TEK BİR I/O çağrısında senkron
+ *    olarak bloke olsa bile (ki bu durumda 1 ve 2 numaralı sayaçlar hiç devreye giremez),
+ *    zaman aşımında arka plan iş parçacığına gerçek bir kesme (Thread.interrupt) sinyali
+ *    gönderilir ve o klasörden vazgeçilip diğerlerine geçilir.
  */
 @Singleton
 class StorageAnalysisManager @Inject constructor(
@@ -37,6 +39,7 @@ class StorageAnalysisManager @Inject constructor(
         private const val MAX_SCAN_DEPTH = 20
         private const val MAX_LARGEST_FILES = 30
         private const val MAX_HASH_CANDIDATES = 300
+        private const val PER_DIRECTORY_TIMEOUT_MS = 5_000L
     }
 
     suspend fun analyze(): OperationResult<StorageAnalysisResult> =
@@ -47,31 +50,38 @@ class StorageAnalysisManager @Inject constructor(
                 var visitedCount = 0
                 var truncated = false
 
-                outer@ for (root in storageManager.getCommonDirectories().values.distinctBy { it.absolutePath }) {
+                for (root in storageManager.getCommonDirectories().values.distinctBy { it.absolutePath }) {
+                    if (visitedCount >= MAX_ENTRIES_TO_SCAN) {
+                        truncated = true
+                        break
+                    }
                     if (!root.exists() || !root.canRead()) continue
 
-                    val iterator = root.walkTopDown()
-                        .onEnter { dir -> !dir.name.startsWith(".") }
-                        .maxDepth(MAX_SCAN_DEPTH)
-                        .iterator()
+                    // Her klasör kendi zaman aşımı ve gerçek iş parçacığı kesmesiyle (runInterruptible)
+                    // taranır — bir klasör (ör. bulut senkronlu sanal galeri) tek bir I/O çağrısında
+                    // sonsuza kadar bloke olsa bile, o klasörden vazgeçilip devam edilir.
+                    val completed = kotlinx.coroutines.withTimeoutOrNull(PER_DIRECTORY_TIMEOUT_MS) {
+                        kotlinx.coroutines.runInterruptible {
+                            val iterator = root.walkTopDown()
+                                .onEnter { dir -> !dir.name.startsWith(".") }
+                                .maxDepth(MAX_SCAN_DEPTH)
+                                .iterator()
 
-                    while (iterator.hasNext()) {
-                        val entry = iterator.next()
+                            while (iterator.hasNext() && visitedCount < MAX_ENTRIES_TO_SCAN) {
+                                val entry = iterator.next()
+                                visitedCount++
 
-                        visitedCount++
-                        if (visitedCount >= MAX_ENTRIES_TO_SCAN) {
-                            truncated = true
-                            break@outer
-                        }
-
-                        if (entry.isDirectory) {
-                            if (entry.absolutePath != root.absolutePath && entry.listFiles()?.isEmpty() == true) {
-                                emptyFolders += EmptyFolderEntry(entry.absolutePath)
+                                if (entry.isDirectory) {
+                                    if (entry.absolutePath != root.absolutePath && entry.listFiles()?.isEmpty() == true) {
+                                        emptyFolders += EmptyFolderEntry(entry.absolutePath)
+                                    }
+                                } else {
+                                    allFiles += entry
+                                }
                             }
-                        } else {
-                            allFiles += entry
                         }
                     }
+                    if (completed == null) truncated = true
                 }
 
                 val categorySummaries = buildCategorySummaries(allFiles)
