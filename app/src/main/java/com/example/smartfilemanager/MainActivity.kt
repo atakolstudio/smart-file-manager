@@ -6,7 +6,10 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.getValue
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.smartfilemanager.navigation.SmartFileManagerNavHost
 import com.example.smartfilemanager.permission.PermissionManager
 import com.example.smartfilemanager.ui.theme.SmartFileManagerTheme
@@ -38,7 +41,16 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         setContent {
-            SmartFileManagerTheme {
+            val mainViewModel: com.example.smartfilemanager.ui.MainViewModel = androidx.hilt.navigation.compose.hiltViewModel()
+            val themeMode by mainViewModel.themeMode.collectAsStateWithLifecycle()
+
+            val darkTheme = when (themeMode) {
+                com.example.smartfilemanager.data.ThemeMode.LIGHT -> false
+                com.example.smartfilemanager.data.ThemeMode.DARK -> true
+                com.example.smartfilemanager.data.ThemeMode.SYSTEM -> isSystemInDarkTheme()
+            }
+
+            SmartFileManagerTheme(darkTheme = darkTheme) {
                 SmartFileManagerNavHost(
                     onRequestPermission = { requestStoragePermission() }
                 )
