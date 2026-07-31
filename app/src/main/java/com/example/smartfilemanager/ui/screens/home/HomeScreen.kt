@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -118,7 +119,7 @@ fun HomeScreen(
                             )
                         } else {
                             androidx.compose.material3.IconButton(onClick = { viewModel.forceRescan() }) {
-                                Icon(androidx.compose.material.icons.Icons.Filled.Refresh, contentDescription = "Yenile")
+                                Icon(Icons.Filled.Refresh, contentDescription = "Yenile")
                             }
                         }
                     }
