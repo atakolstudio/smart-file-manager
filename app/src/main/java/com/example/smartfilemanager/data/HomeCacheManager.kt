@@ -85,4 +85,8 @@ class HomeCacheManager @Inject constructor(
             }
         }
     }
+
+    suspend fun clear() {
+        context.homeCacheDataStore.edit { prefs -> prefs.clear() }
+    }
 }

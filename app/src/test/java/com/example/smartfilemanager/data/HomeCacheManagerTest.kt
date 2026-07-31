@@ -6,15 +6,25 @@ import com.example.smartfilemanager.model.CategorySummary
 import com.example.smartfilemanager.model.FileCategory
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
+/**
+ * NOT: Robolectric ortamında DataStore durumu test sınıfı çalıştırmaları arasında sızabiliyor,
+ * bu yüzden her testten önce [HomeCacheManager.clear] ile sıfırlıyoruz.
+ */
 @RunWith(RobolectricTestRunner::class)
 class HomeCacheManagerTest {
 
     private val context = ApplicationProvider.getApplicationContext<android.app.Application>()
     private val cacheManager = HomeCacheManager(context)
+
+    @Before
+    fun clearState() {
+        runBlocking { cacheManager.clear() }
+    }
 
     @Test
     fun `loadCache returns null when nothing has been saved yet`() = runBlocking {
