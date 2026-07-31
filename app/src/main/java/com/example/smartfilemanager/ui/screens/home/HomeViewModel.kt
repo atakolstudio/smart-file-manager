@@ -24,7 +24,8 @@ data class HomeUiState(
     val hasPermission: Boolean = false,
     val storageSummary: StorageSummary = StorageSummary(),
     val categorySummaries: List<CategorySummary> = emptyList(),
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val progressStep: String? = null
 )
 
 /**
@@ -53,15 +54,17 @@ class HomeViewModel @Inject constructor(
         // çağrılar aynı anda birden fazla tarama başlatıp kaynak çekişmesine yol açmasın.
         refreshJob?.cancel()
         refreshJob = viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
+            _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null, progressStep = "Başlıyor...")
 
             val completed = kotlinx.coroutines.withTimeoutOrNull(OVERALL_REFRESH_TIMEOUT_MS) {
+                _uiState.value = _uiState.value.copy(progressStep = "İzin kontrol ediliyor...")
                 val hasPermission = permissionManager.hasAllFilesAccess()
                 if (!hasPermission) {
                     _uiState.value = HomeUiState(isLoading = false, hasPermission = false)
                     return@withTimeoutOrNull
                 }
 
+                _uiState.value = _uiState.value.copy(progressStep = "Depolama boyutu hesaplanıyor...")
                 val (total, free) = storageManager.getTotalAndFreeBytes()
                 val storageSummary = StorageSummary(
                     totalBytes = total,
@@ -69,7 +72,11 @@ class HomeViewModel @Inject constructor(
                     freeBytes = free
                 )
 
-                when (val result = storageManager.getCategorySummaries()) {
+                val result = storageManager.getCategorySummaries { directoryName ->
+                    _uiState.value = _uiState.value.copy(progressStep = "Taranıyor: $directoryName...")
+                }
+
+                when (result) {
                     is OperationResult.Success -> {
                         _uiState.value = HomeUiState(
                             isLoading = false,
@@ -90,9 +97,10 @@ class HomeViewModel @Inject constructor(
             }
 
             if (completed == null) {
+                val stuckStep = _uiState.value.progressStep
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
-                    errorMessage = "Tarama çok uzun sürdü, atlandı. Tekrar deneyebilirsiniz."
+                    errorMessage = "Tarama çok uzun sürdü ve atlandı (takıldığı adım: $stuckStep). Tekrar deneyebilirsiniz."
                 )
             }
         }

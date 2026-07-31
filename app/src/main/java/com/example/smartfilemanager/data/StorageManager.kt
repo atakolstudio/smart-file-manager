@@ -39,15 +39,19 @@ class StorageManager @Inject constructor(
      * tarayıp her kategori için dosya sayısı ve toplam boyutu hesaplar.
      * Çok büyük depolamalarda maliyeti sınırlamak için tarama tek seferlik ve arka planda yapılır.
      */
-    suspend fun getCategorySummaries(): OperationResult<List<CategorySummary>> =
+    suspend fun getCategorySummaries(onProgress: (String) -> Unit = {}): OperationResult<List<CategorySummary>> =
         withContext(ioDispatcher) {
             safeFileOperation("Depolama taranamadı") {
                 val counters = mutableMapOf<FileCategory, Pair<Int, Long>>()
                 var visitedCount = 0
 
-                for (directory in getCommonDirectories().values.distinctBy { it.absolutePath }) {
+                val seenPaths = mutableSetOf<String>()
+                for ((label, directory) in getCommonDirectories()) {
+                    if (!seenPaths.add(directory.absolutePath)) continue
                     if (visitedCount >= MAX_ENTRIES_PER_SCAN) break
                     if (!directory.exists() || !directory.canRead()) continue
+
+                    onProgress(label)
 
                     // ÖNEMLİ: Sadece sayıya dayalı bir sınır yeterli değil — eğer bir klasörün
                     // (ör. bulut senkronlu sanal bir galeri klasörünün) İÇİNDEKİ TEK BİR I/O

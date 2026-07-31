@@ -109,7 +109,7 @@ fun HomeScreen(
         }
     ) { paddingValues ->
         when {
-            uiState.isLoading -> LoadingContent(paddingValues)
+            uiState.isLoading -> LoadingContent(paddingValues, uiState.progressStep)
             !uiState.hasPermission -> com.example.smartfilemanager.ui.screens.permission.PermissionScreen(
                 onGrantPermissionClick = onRequestPermission,
                 onRecheckClick = { viewModel.refresh() },
@@ -134,7 +134,7 @@ fun HomeScreen(
 }
 
 @Composable
-private fun LoadingContent(paddingValues: PaddingValues) {
+private fun LoadingContent(paddingValues: PaddingValues, progressStep: String?) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -143,6 +143,14 @@ private fun LoadingContent(paddingValues: PaddingValues) {
         verticalArrangement = Arrangement.Center
     ) {
         CircularProgressIndicator()
+        if (progressStep != null) {
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = progressStep,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 }
 
