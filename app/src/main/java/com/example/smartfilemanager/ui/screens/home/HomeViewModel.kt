@@ -2,15 +2,18 @@ package com.example.smartfilemanager.ui.screens.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.smartfilemanager.data.HomeCacheManager
 import com.example.smartfilemanager.data.OperationResult
 import com.example.smartfilemanager.data.StorageManager
 import com.example.smartfilemanager.model.CategorySummary
 import com.example.smartfilemanager.permission.PermissionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
 
 data class StorageSummary(
@@ -21,9 +24,11 @@ data class StorageSummary(
 
 data class HomeUiState(
     val isLoading: Boolean = true,
+    val isRescanning: Boolean = false,
     val hasPermission: Boolean = false,
     val storageSummary: StorageSummary = StorageSummary(),
     val categorySummaries: List<CategorySummary> = emptyList(),
+    val lastScannedAtMillis: Long? = null,
     val errorMessage: String? = null,
     val progressStep: String? = null
 )
@@ -31,36 +36,87 @@ data class HomeUiState(
 /**
  * Ana sayfanın durumunu yönetir: depolama izni kontrolü, genel depolama özetini
  * ve [StorageManager] üzerinden gerçek kategori bazlı dosya sayısı/boyutlarını hesaplar.
+ *
+ * ÖNEMLİ (performans): Bazı cihazlarda (çok sayıda dosya + Android'in depolama emülasyon
+ * katmanının getirdiği ek gecikme yüzünden) tam tarama dakikalar sürebiliyor. Bu yüzden:
+ * - Önbellekte önceki bir tarama sonucu varsa, ekran AÇILIR AÇILMAZ o sonuç gösterilir
+ *   (yeniden taramadan, neredeyse anında).
+ * - Yeni bir tarama yalnızca önbellek hiç yoksa (ilk açılış) otomatik başlar.
+ * - Kullanıcı ne zaman isterse [refresh] ile elle yeniden tarayabilir (arka planda,
+ *   ekranı kilitlemeden — mevcut veriler tarama bitene kadar görünür kalır).
  */
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val permissionManager: PermissionManager,
-    private val storageManager: StorageManager
+    private val storageManager: StorageManager,
+    private val homeCacheManager: HomeCacheManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
-    private var refreshJob: kotlinx.coroutines.Job? = null
+    private var scanJob: Job? = null
+    private var hasLoadedOnce = false
 
     companion object {
         /** Son çare üst sınır: hangi sebepten olursa olsun (beklenmedik bir donma dahil),
-         * ana sayfa asla bu süreden fazla "yükleniyor" durumunda kalmaz. */
-        private const val OVERALL_REFRESH_TIMEOUT_MS = 45_000L
+         * bir tarama asla bu süreden fazla sürmez. */
+        private const val OVERALL_SCAN_TIMEOUT_MS = 60_000L
     }
 
+    /**
+     * Ekran her göründüğünde (ör. onResume) çağrılır. İlk çağrıda önbelleği yükler ve
+     * önbellek yoksa taramayı başlatır. Sonraki çağrılarda sadece izin durumunu günceller,
+     * YENİDEN TARAMAZ — kullanıcı bunu [forceRescan] ile elle tetikleyebilir.
+     */
     fun refresh() {
-        // Önceki tarama hâlâ sürüyorsa iptal et — art arda tetiklenen (ör. hızlı ON_RESUME)
-        // çağrılar aynı anda birden fazla tarama başlatıp kaynak çekişmesine yol açmasın.
-        refreshJob?.cancel()
-        refreshJob = viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null, progressStep = "Başlıyor...")
+        val hasPermission = permissionManager.hasAllFilesAccess()
+        _uiState.value = _uiState.value.copy(hasPermission = hasPermission)
 
-            val completed = kotlinx.coroutines.withTimeoutOrNull(OVERALL_REFRESH_TIMEOUT_MS) {
-                _uiState.value = _uiState.value.copy(progressStep = "İzin kontrol ediliyor...")
+        if (hasLoadedOnce) return
+        hasLoadedOnce = true
+
+        viewModelScope.launch {
+            if (!hasPermission) {
+                _uiState.value = _uiState.value.copy(isLoading = false, hasPermission = false)
+                return@launch
+            }
+
+            val cached = homeCacheManager.loadCache()
+            if (cached != null) {
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    hasPermission = true,
+                    storageSummary = StorageSummary(cached.totalBytes, cached.usedBytes, cached.freeBytes),
+                    categorySummaries = cached.categorySummaries,
+                    lastScannedAtMillis = cached.scannedAtMillis
+                )
+            } else {
+                // İlk açılış: önbellek yok, taramak gerekiyor.
+                startScan()
+            }
+        }
+    }
+
+    /** Kullanıcının elle tetiklediği yeniden tarama (ör. bir "Yenile" butonu ile). */
+    fun forceRescan() {
+        startScan()
+    }
+
+    private fun startScan() {
+        scanJob?.cancel()
+        scanJob = viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(
+                isLoading = _uiState.value.categorySummaries.isEmpty(),
+                isRescanning = _uiState.value.categorySummaries.isNotEmpty(),
+                errorMessage = null,
+                progressStep = "Başlıyor..."
+            )
+
+            val completed = withTimeoutOrNull(OVERALL_SCAN_TIMEOUT_MS) {
                 val hasPermission = permissionManager.hasAllFilesAccess()
                 if (!hasPermission) {
-                    _uiState.value = HomeUiState(isLoading = false, hasPermission = false)
+                    _uiState.value = _uiState.value.copy(isLoading = false, isRescanning = false, hasPermission = false)
                     return@withTimeoutOrNull
                 }
 
@@ -78,16 +134,20 @@ class HomeViewModel @Inject constructor(
 
                 when (result) {
                     is OperationResult.Success -> {
+                        homeCacheManager.saveCache(total, total - free, free, result.data)
                         _uiState.value = HomeUiState(
                             isLoading = false,
+                            isRescanning = false,
                             hasPermission = true,
                             storageSummary = storageSummary,
-                            categorySummaries = result.data
+                            categorySummaries = result.data,
+                            lastScannedAtMillis = System.currentTimeMillis()
                         )
                     }
                     is OperationResult.Error -> {
-                        _uiState.value = HomeUiState(
+                        _uiState.value = _uiState.value.copy(
                             isLoading = false,
+                            isRescanning = false,
                             hasPermission = true,
                             storageSummary = storageSummary,
                             errorMessage = result.message
@@ -97,10 +157,10 @@ class HomeViewModel @Inject constructor(
             }
 
             if (completed == null) {
-                val stuckStep = _uiState.value.progressStep
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
-                    errorMessage = "Tarama çok uzun sürdü ve atlandı (takıldığı adım: $stuckStep). Tekrar deneyebilirsiniz."
+                    isRescanning = false,
+                    errorMessage = "Tarama çok uzun sürdü ve durduruldu. Tekrar deneyebilirsiniz."
                 )
             }
         }

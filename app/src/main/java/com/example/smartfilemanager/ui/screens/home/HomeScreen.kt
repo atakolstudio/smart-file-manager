@@ -105,7 +105,25 @@ fun HomeScreen(
     Scaffold(
         modifier = modifier.fillMaxSize(),
         topBar = {
-            TopAppBar(title = { Text(text = stringResourceCompat(R.string.home_title)) })
+            TopAppBar(
+                title = { Text(text = stringResourceCompat(R.string.home_title)) },
+                actions = {
+                    if (uiState.hasPermission && !uiState.isLoading) {
+                        if (uiState.isRescanning) {
+                            androidx.compose.material3.CircularProgressIndicator(
+                                modifier = Modifier
+                                    .padding(end = 16.dp)
+                                    .size(20.dp),
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            androidx.compose.material3.IconButton(onClick = { viewModel.forceRescan() }) {
+                                Icon(androidx.compose.material.icons.Icons.Filled.Refresh, contentDescription = "Yenile")
+                            }
+                        }
+                    }
+                }
+            )
         }
     ) { paddingValues ->
         when {
@@ -119,6 +137,7 @@ fun HomeScreen(
                 paddingValues = paddingValues,
                 storageSummary = uiState.storageSummary,
                 categorySummaries = uiState.categorySummaries,
+                lastScannedAtMillis = uiState.lastScannedAtMillis,
                 onCategoryClick = { category ->
                     if (category.isAppsShortcut) {
                         onNavigateToApps()
@@ -159,6 +178,7 @@ private fun HomeContent(
     paddingValues: PaddingValues,
     storageSummary: StorageSummary,
     categorySummaries: List<com.example.smartfilemanager.model.CategorySummary>,
+    lastScannedAtMillis: Long?,
     onCategoryClick: (HomeCategory) -> Unit
 ) {
     Column(
@@ -171,10 +191,23 @@ private fun HomeContent(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        Text(
-            text = stringResourceCompat(R.string.home_quick_access),
-            style = MaterialTheme.typography.titleMedium
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Bottom
+        ) {
+            Text(
+                text = stringResourceCompat(R.string.home_quick_access),
+                style = MaterialTheme.typography.titleMedium
+            )
+            if (lastScannedAtMillis != null) {
+                Text(
+                    text = lastScannedLabel(lastScannedAtMillis),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
 
         Spacer(modifier = Modifier.height(12.dp))
 
@@ -195,6 +228,15 @@ private fun HomeContent(
                 )
             }
         }
+    }
+}
+
+private fun lastScannedLabel(scannedAtMillis: Long): String {
+    val minutesAgo = (System.currentTimeMillis() - scannedAtMillis) / 60_000L
+    return when {
+        minutesAgo < 1 -> "Az önce tarandı"
+        minutesAgo < 60 -> "$minutesAgo dk önce tarandı"
+        else -> "${minutesAgo / 60} sa önce tarandı"
     }
 }
 
