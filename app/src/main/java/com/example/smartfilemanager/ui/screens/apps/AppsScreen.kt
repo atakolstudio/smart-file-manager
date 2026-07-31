@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -107,12 +108,21 @@ fun AppsScreen(
                     Text("Paket: ${app.packageName}", style = MaterialTheme.typography.bodyMedium)
                     Text("Sürüm: ${app.versionName ?: "Bilinmiyor"}", style = MaterialTheme.typography.bodyMedium)
                     Text("APK Boyutu: ${SizeFormatter.format(app.sizeBytes)}", style = MaterialTheme.typography.bodyMedium)
+                    Spacer(modifier = Modifier.padding(top = 12.dp))
+                    TextButton(
+                        onClick = { viewModel.exportApk(app); selectedApp = null },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("APK'yı Dışa Aktar") }
+                    TextButton(
+                        onClick = { viewModel.uninstallApp(app); selectedApp = null },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error
+                        )
+                    ) { Text("Kaldır") }
                 }
             },
             confirmButton = {
-                TextButton(onClick = { viewModel.exportApk(app); selectedApp = null }) { Text("APK'yı Dışa Aktar") }
-            },
-            dismissButton = {
                 TextButton(onClick = { selectedApp = null }) { Text("Kapat") }
             }
         )

@@ -116,6 +116,18 @@ class AppsViewModel @Inject constructor(
         }
     }
 
+    fun uninstallApp(app: AppInfo) {
+        try {
+            val intent = android.content.Intent(android.content.Intent.ACTION_DELETE).apply {
+                data = android.net.Uri.parse("package:${app.packageName}")
+                addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+        } catch (t: Throwable) {
+            _uiState.value = _uiState.value.copy(errorMessage = t.message ?: "Kaldırma başlatılamadı")
+        }
+    }
+
     fun consumeMessages() {
         _uiState.value = _uiState.value.copy(errorMessage = null, infoMessage = null)
     }

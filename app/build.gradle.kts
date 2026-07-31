@@ -92,6 +92,8 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.accompanist.permissions)
     implementation(libs.androidx.core.splashscreen)
+    implementation(libs.androidx.biometric)
+    implementation(libs.androidx.fragment.ktx)
 
     testImplementation(libs.junit)
     testImplementation(libs.robolectric)
