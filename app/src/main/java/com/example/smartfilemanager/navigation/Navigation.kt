@@ -89,6 +89,9 @@ fun SmartFileManagerNavHost(
                     onNavigateToApps = {
                         navController.navigate(Screen.Apps.route)
                     },
+                    onOpenFile = { filePath ->
+                        navController.navigate(Screen.previewRouteWithPath(filePath))
+                    },
                     onRequestPermission = onRequestPermission
                 )
             }

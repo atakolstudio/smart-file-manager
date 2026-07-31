@@ -282,6 +282,22 @@ class FilesViewModel @Inject constructor(
         }
     }
 
+    fun shareFile(path: String) {
+        when (val result = fileOpener.shareFile(path)) {
+            is OperationResult.Success -> Unit
+            is OperationResult.Error -> _errorMessage.value = result.message
+        }
+    }
+
+    fun shareSelected() {
+        val paths = _selectedPaths.value.toList()
+        if (paths.isEmpty()) return
+        when (val result = fileOpener.shareFiles(paths)) {
+            is OperationResult.Success -> clearSelection()
+            is OperationResult.Error -> _errorMessage.value = result.message
+        }
+    }
+
     fun loadFileInfo(path: String) {
         _hashResult.value = null
         viewModelScope.launch {

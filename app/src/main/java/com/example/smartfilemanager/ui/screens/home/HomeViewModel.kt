@@ -6,6 +6,7 @@ import com.example.smartfilemanager.data.HomeCacheManager
 import com.example.smartfilemanager.data.OperationResult
 import com.example.smartfilemanager.data.StorageManager
 import com.example.smartfilemanager.model.CategorySummary
+import com.example.smartfilemanager.model.RecentFileEntry
 import com.example.smartfilemanager.permission.PermissionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
@@ -28,6 +29,7 @@ data class HomeUiState(
     val hasPermission: Boolean = false,
     val storageSummary: StorageSummary = StorageSummary(),
     val categorySummaries: List<CategorySummary> = emptyList(),
+    val recentFiles: List<RecentFileEntry> = emptyList(),
     val lastScannedAtMillis: Long? = null,
     val errorMessage: String? = null,
     val progressStep: String? = null
@@ -62,6 +64,7 @@ class HomeViewModel @Inject constructor(
         /** Son çare üst sınır: hangi sebepten olursa olsun (beklenmedik bir donma dahil),
          * bir tarama asla bu süreden fazla sürmez. */
         private const val OVERALL_SCAN_TIMEOUT_MS = 60_000L
+        private const val MAX_RECENT_FILES = 10
     }
 
     /**
@@ -92,6 +95,7 @@ class HomeViewModel @Inject constructor(
                     isLoading = false,
                     storageSummary = StorageSummary(cached.totalBytes, cached.usedBytes, cached.freeBytes),
                     categorySummaries = cached.categorySummaries,
+                    recentFiles = cached.recentFiles,
                     lastScannedAtMillis = cached.scannedAtMillis
                 )
             } else {
@@ -130,19 +134,34 @@ class HomeViewModel @Inject constructor(
                     freeBytes = free
                 )
 
-                val result = storageManager.getCategorySummaries { directoryName ->
-                    _uiState.value = _uiState.value.copy(progressStep = "Taranıyor: $directoryName...")
-                }
+                val recentCandidates = mutableListOf<RecentFileEntry>()
+                val result = storageManager.getCategorySummaries(
+                    onProgress = { directoryName ->
+                        _uiState.value = _uiState.value.copy(progressStep = "Taranıyor: $directoryName...")
+                    },
+                    onFileVisited = { file ->
+                        recentCandidates += RecentFileEntry(
+                            path = file.absolutePath,
+                            name = file.name,
+                            lastModified = file.lastModified(),
+                            sizeBytes = file.length()
+                        )
+                    }
+                )
+                val recentFiles = recentCandidates
+                    .sortedByDescending { it.lastModified }
+                    .take(MAX_RECENT_FILES)
 
                 when (result) {
                     is OperationResult.Success -> {
-                        homeCacheManager.saveCache(total, total - free, free, result.data)
+                        homeCacheManager.saveCache(total, total - free, free, result.data, recentFiles)
                         _uiState.value = HomeUiState(
                             isLoading = false,
                             isRescanning = false,
                             hasPermission = true,
                             storageSummary = storageSummary,
                             categorySummaries = result.data,
+                            recentFiles = recentFiles,
                             lastScannedAtMillis = System.currentTimeMillis()
                         )
                     }

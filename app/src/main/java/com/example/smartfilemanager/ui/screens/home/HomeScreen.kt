@@ -4,6 +4,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,6 +16,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items as lazyRowItems
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -86,6 +90,7 @@ private val homeCategories = listOf(
 fun HomeScreen(
     onNavigateToFolder: (String) -> Unit,
     onNavigateToApps: () -> Unit,
+    onOpenFile: (String) -> Unit,
     onRequestPermission: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: HomeViewModel = hiltViewModel()
@@ -138,6 +143,7 @@ fun HomeScreen(
                 paddingValues = paddingValues,
                 storageSummary = uiState.storageSummary,
                 categorySummaries = uiState.categorySummaries,
+                recentFiles = uiState.recentFiles,
                 lastScannedAtMillis = uiState.lastScannedAtMillis,
                 onCategoryClick = { category ->
                     if (category.isAppsShortcut) {
@@ -147,7 +153,8 @@ fun HomeScreen(
                             ?.let { viewModel.directoryPathFor(it) }
                             ?.let(onNavigateToFolder)
                     }
-                }
+                },
+                onRecentFileClick = onOpenFile
             )
         }
     }
@@ -179,8 +186,10 @@ private fun HomeContent(
     paddingValues: PaddingValues,
     storageSummary: StorageSummary,
     categorySummaries: List<com.example.smartfilemanager.model.CategorySummary>,
+    recentFiles: List<com.example.smartfilemanager.model.RecentFileEntry>,
     lastScannedAtMillis: Long?,
-    onCategoryClick: (HomeCategory) -> Unit
+    onCategoryClick: (HomeCategory) -> Unit,
+    onRecentFileClick: (String) -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -189,6 +198,19 @@ private fun HomeContent(
             .padding(16.dp)
     ) {
         StorageSummaryCard(storageSummary)
+
+        if (recentFiles.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(20.dp))
+            Text(text = "Son Kullanılanlar", style = MaterialTheme.typography.titleMedium)
+            Spacer(modifier = Modifier.height(12.dp))
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                lazyRowItems(recentFiles, key = { it.path }) { entry ->
+                    RecentFileTile(entry = entry, onClick = { onRecentFileClick(entry.path) })
+                }
+            }
+        }
 
         Spacer(modifier = Modifier.height(20.dp))
 
@@ -229,6 +251,30 @@ private fun HomeContent(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun RecentFileTile(entry: com.example.smartfilemanager.model.RecentFileEntry, onClick: () -> Unit) {
+    val category = com.example.smartfilemanager.util.MimeTypeHelper.getCategory(entry.name, isDirectory = false)
+    Column(
+        modifier = Modifier
+            .width(88.dp)
+            .clickable(onClick = onClick),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        com.example.smartfilemanager.ui.components.FileThumbnail(
+            path = entry.path,
+            category = category,
+            size = 72.dp
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = entry.name,
+            style = MaterialTheme.typography.labelSmall,
+            maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+        )
     }
 }
 

@@ -41,6 +41,7 @@ import androidx.compose.material.icons.filled.NoteAdd
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SearchOff
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.automirrored.filled.ViewList
@@ -149,7 +150,8 @@ fun FilesScreen(
                     onCopy = viewModel::copySelectionToClipboard,
                     onCut = viewModel::cutSelectionToClipboard,
                     onDelete = viewModel::deleteSelected,
-                    onCompress = { showCompressDialog = true }
+                    onCompress = { showCompressDialog = true },
+                    onShare = viewModel::shareSelected
                 )
                 isSearchActive -> SearchTopBar(
                     query = uiState.searchQuery,
@@ -253,6 +255,7 @@ fun FilesScreen(
                         onDeleteClick = { item -> deleteTarget = item },
                         onInfoClick = { item -> viewModel.loadFileInfo(item.path) },
                         onOpenExternallyClick = { item -> viewModel.openExternally(item.path) },
+                        onShareClick = { item -> viewModel.shareFile(item.path) },
                         onToggleFavoriteClick = { item -> viewModel.toggleFavorite(item.path) },
                         onExtractClick = { item -> viewModel.extractArchive(item.path) }
                     )
@@ -465,8 +468,10 @@ private fun SelectionTopBar(
     onCopy: () -> Unit,
     onCut: () -> Unit,
     onDelete: () -> Unit,
-    onCompress: () -> Unit
+    onCompress: () -> Unit,
+    onShare: () -> Unit
 ) {
+    var showMoreMenu by remember { mutableStateOf(false) }
     TopAppBar(
         title = { Text("$selectedCount seçildi") },
         navigationIcon = {
@@ -476,8 +481,24 @@ private fun SelectionTopBar(
             IconButton(onClick = onSelectAll) { Icon(Icons.Filled.Check, contentDescription = "Tümünü seç") }
             IconButton(onClick = onCopy) { Icon(Icons.Filled.ContentCopy, contentDescription = "Kopyala") }
             IconButton(onClick = onCut) { Icon(Icons.Filled.ContentCut, contentDescription = "Kes") }
-            IconButton(onClick = onCompress) { Icon(Icons.Filled.FolderZip, contentDescription = "Sıkıştır") }
             IconButton(onClick = onDelete) { Icon(Icons.Filled.Delete, contentDescription = "Sil") }
+            Box {
+                IconButton(onClick = { showMoreMenu = true }) {
+                    Icon(Icons.Filled.MoreVert, contentDescription = "Diğer işlemler")
+                }
+                DropdownMenu(expanded = showMoreMenu, onDismissRequest = { showMoreMenu = false }) {
+                    DropdownMenuItem(
+                        text = { Text("Paylaş") },
+                        leadingIcon = { Icon(Icons.Filled.Share, contentDescription = null) },
+                        onClick = { showMoreMenu = false; onShare() }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Sıkıştır") },
+                        leadingIcon = { Icon(Icons.Filled.FolderZip, contentDescription = null) },
+                        onClick = { showMoreMenu = false; onCompress() }
+                    )
+                }
+            }
         }
     )
 }
@@ -597,6 +618,7 @@ private fun FileList(
     onDeleteClick: (FileItem) -> Unit,
     onInfoClick: (FileItem) -> Unit,
     onOpenExternallyClick: (FileItem) -> Unit,
+    onShareClick: (FileItem) -> Unit,
     onToggleFavoriteClick: (FileItem) -> Unit,
     onExtractClick: (FileItem) -> Unit
 ) {
@@ -613,6 +635,7 @@ private fun FileList(
                 onDeleteClick = { onDeleteClick(item) },
                 onInfoClick = { onInfoClick(item) },
                 onOpenExternallyClick = { onOpenExternallyClick(item) },
+                onShareClick = { onShareClick(item) },
                 onToggleFavoriteClick = { onToggleFavoriteClick(item) },
                 onExtractClick = { onExtractClick(item) }
             )
@@ -633,6 +656,7 @@ private fun FileRow(
     onDeleteClick: () -> Unit,
     onInfoClick: () -> Unit,
     onOpenExternallyClick: () -> Unit,
+    onShareClick: () -> Unit,
     onToggleFavoriteClick: () -> Unit,
     onExtractClick: () -> Unit
 ) {
@@ -718,6 +742,11 @@ private fun FileRow(
                             text = { Text("Harici Uygulamada Aç") },
                             leadingIcon = { Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null) },
                             onClick = { showMenu = false; onOpenExternallyClick() }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Paylaş") },
+                            leadingIcon = { Icon(Icons.Filled.Share, contentDescription = null) },
+                            onClick = { showMenu = false; onShareClick() }
                         )
                     }
                     DropdownMenuItem(

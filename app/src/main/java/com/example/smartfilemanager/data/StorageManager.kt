@@ -39,7 +39,10 @@ class StorageManager @Inject constructor(
      * tarayıp her kategori için dosya sayısı ve toplam boyutu hesaplar.
      * Çok büyük depolamalarda maliyeti sınırlamak için tarama tek seferlik ve arka planda yapılır.
      */
-    suspend fun getCategorySummaries(onProgress: (String) -> Unit = {}): OperationResult<List<CategorySummary>> =
+    suspend fun getCategorySummaries(
+        onProgress: (String) -> Unit = {},
+        onFileVisited: (File) -> Unit = {}
+    ): OperationResult<List<CategorySummary>> =
         withContext(ioDispatcher) {
             safeFileOperation("Depolama taranamadı") {
                 val counters = mutableMapOf<FileCategory, Pair<Int, Long>>()
@@ -75,6 +78,7 @@ class StorageManager @Inject constructor(
                                 val category = MimeTypeHelper.getCategory(entry.name, isDirectory = false)
                                 val current = counters[category] ?: (0 to 0L)
                                 counters[category] = (current.first + 1) to (current.second + entry.length())
+                                onFileVisited(entry)
                             }
                         }
                     }
