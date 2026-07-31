@@ -84,11 +84,11 @@ fun AppsScreen(
                 verticalArrangement = Arrangement.Center
             ) { CircularProgressIndicator() }
 
-            uiState.apps.isEmpty() -> Column(
-                modifier = Modifier.fillMaxSize().padding(paddingValues).padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) { Text("Yüklü uygulama bulunamadı", style = MaterialTheme.typography.bodyMedium) }
+            uiState.apps.isEmpty() -> com.example.smartfilemanager.ui.components.EmptyState(
+                icon = Icons.Filled.Apps,
+                title = "Yüklü uygulama bulunamadı",
+                modifier = Modifier.padding(paddingValues)
+            )
 
             else -> LazyColumn(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
                 items(uiState.apps, key = { it.packageName }) { app ->

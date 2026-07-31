@@ -82,13 +82,12 @@ fun RecycleBinScreen(
         }
     ) { paddingValues ->
         if (uiState.entries.isEmpty()) {
-            Column(
-                modifier = Modifier.fillMaxSize().padding(paddingValues).padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Text("Çöp kutusu boş", style = MaterialTheme.typography.bodyMedium)
-            }
+            com.example.smartfilemanager.ui.components.EmptyState(
+                icon = Icons.Filled.Delete,
+                title = "Çöp kutusu boş",
+                subtitle = "Sildiğiniz dosyalar burada görünür ve geri yükleyebilirsiniz",
+                modifier = Modifier.padding(paddingValues)
+            )
         } else {
             LazyColumn(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
                 items(uiState.entries, key = { it.trashPath }) { entry ->

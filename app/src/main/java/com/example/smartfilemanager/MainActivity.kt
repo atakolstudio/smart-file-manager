@@ -6,6 +6,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.enableEdgeToEdge
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.example.smartfilemanager.navigation.SmartFileManagerNavHost
 import com.example.smartfilemanager.permission.PermissionManager
 import com.example.smartfilemanager.ui.theme.SmartFileManagerTheme
@@ -32,6 +33,7 @@ class MainActivity : ComponentActivity() {
     ) { /* Sonuç, ilgili ekranın onResume/refresh akışıyla otomatik olarak yansıtılır */ }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 

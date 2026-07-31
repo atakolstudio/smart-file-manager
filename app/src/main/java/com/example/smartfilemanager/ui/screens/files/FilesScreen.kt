@@ -26,12 +26,15 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.FolderZip
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.NoteAdd
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.StarBorder
@@ -187,11 +190,20 @@ fun FilesScreen(
         Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
             Box(modifier = Modifier.weight(1f)) {
                 when {
-                    path == null -> EmptyMessage("Görüntülenecek bir klasör seçilmedi")
+                    path == null -> com.example.smartfilemanager.ui.components.EmptyState(
+                        icon = Icons.Filled.Folder,
+                        title = "Görüntülenecek bir klasör seçilmedi"
+                    )
                     uiState.isLoading -> LoadingContent()
                     uiState.displayedItems.isEmpty() && uiState.searchQuery.isNotBlank() ->
-                        EmptyMessage("\"${uiState.searchQuery}\" ile eşleşen sonuç yok")
-                    uiState.displayedItems.isEmpty() -> EmptyMessage("Bu klasör boş")
+                        com.example.smartfilemanager.ui.components.EmptyState(
+                            icon = Icons.Filled.SearchOff,
+                            title = "\"${uiState.searchQuery}\" ile eşleşen sonuç yok"
+                        )
+                    uiState.displayedItems.isEmpty() -> com.example.smartfilemanager.ui.components.EmptyState(
+                        icon = Icons.Filled.FolderOpen,
+                        title = "Bu klasör boş"
+                    )
                     else -> FileList(
                         items = uiState.displayedItems,
                         selectedPaths = uiState.selectedPaths,
@@ -409,15 +421,6 @@ private fun LoadingContent() {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) { CircularProgressIndicator() }
-}
-
-@Composable
-private fun EmptyMessage(message: String) {
-    Column(
-        modifier = Modifier.fillMaxSize().padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) { Text(text = message, style = MaterialTheme.typography.bodyMedium) }
 }
 
 @Composable

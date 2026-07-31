@@ -61,22 +61,12 @@ fun FavoritesScreen(
                 verticalArrangement = Arrangement.Center
             ) { CircularProgressIndicator() }
 
-            uiState.items.isEmpty() -> Column(
-                modifier = Modifier.fillMaxSize().padding(paddingValues).padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Star,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(bottom = 12.dp)
-                )
-                Text(
-                    text = "Henüz favori eklenmedi",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            }
+            uiState.items.isEmpty() -> com.example.smartfilemanager.ui.components.EmptyState(
+                icon = Icons.Filled.Star,
+                title = "Henüz favori eklenmedi",
+                subtitle = "Bir dosyaya uzun basıp \"Favorilere Ekle\" seçeneğini kullanabilirsiniz",
+                modifier = Modifier.padding(paddingValues)
+            )
 
             else -> LazyColumn(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
                 items(uiState.items, key = { it.path }) { item ->
