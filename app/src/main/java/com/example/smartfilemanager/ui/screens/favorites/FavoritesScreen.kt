@@ -93,7 +93,7 @@ private fun FavoriteRow(item: FileItem, onClick: () -> Unit, onRemove: () -> Uni
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(imageVector = IconProvider.iconFor(category), contentDescription = null, tint = IconProvider.colorFor(category))
+        com.example.smartfilemanager.ui.components.FileThumbnail(path = item.path, category = category)
         Column(modifier = Modifier.padding(start = 16.dp).weight(1f)) {
             Text(text = item.name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
             val subtitle = if (item.isDirectory) "Klasör" else SizeFormatter.format(item.sizeBytes)

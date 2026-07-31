@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.FolderZip
+import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.NoteAdd
@@ -37,6 +38,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -86,9 +88,11 @@ private fun isPreviewableInApp(item: FileItem): Boolean {
     return extension == "pdf" || extension in previewableImageExtensions || extension in previewableTextExtensions
 }
 
+private enum class ViewMode { LIST, GRID }
+
 /**
  * Klasör içeriğini listeler; arama, sıralama, kopyala/kes/yapıştır/sil/yeniden adlandırma,
- * çoklu seçim, önizleme yönlendirmesi ve dosya bilgisi gösterimini destekler.
+ * çoklu seçim, önizleme yönlendirmesi, dosya bilgisi ve liste/ızgara görünüm değiştirmeyi destekler.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -107,6 +111,7 @@ fun FilesScreen(
     val coroutineScope = rememberCoroutineScope()
 
     var isSearchActive by remember { mutableStateOf(false) }
+    var viewMode by remember { mutableStateOf(ViewMode.LIST) }
     var showSortMenu by remember { mutableStateOf(false) }
     var showNewFolderDialog by remember { mutableStateOf(false) }
     var showNewFileDialog by remember { mutableStateOf(false) }
@@ -161,7 +166,11 @@ fun FilesScreen(
                         viewModel.setSortOption(option)
                         showSortMenu = false
                     },
-                    onToggleDirection = viewModel::toggleSortDirection
+                    onToggleDirection = viewModel::toggleSortDirection,
+                    viewMode = viewMode,
+                    onToggleViewMode = {
+                        viewMode = if (viewMode == ViewMode.LIST) ViewMode.GRID else ViewMode.LIST
+                    }
                 )
             }
         },
@@ -203,6 +212,20 @@ fun FilesScreen(
                     uiState.displayedItems.isEmpty() -> com.example.smartfilemanager.ui.components.EmptyState(
                         icon = Icons.Filled.FolderOpen,
                         title = "Bu klasör boş"
+                    )
+                    viewMode == ViewMode.GRID -> FileGrid(
+                        items = uiState.displayedItems,
+                        selectedPaths = uiState.selectedPaths,
+                        isSelectionMode = uiState.isSelectionMode,
+                        onItemClick = { item ->
+                            when {
+                                uiState.isSelectionMode -> viewModel.toggleSelection(item.path)
+                                item.isDirectory -> onOpenFolder(item.path)
+                                isPreviewableInApp(item) -> onOpenPreview(item.path)
+                                else -> viewModel.openExternally(item.path)
+                            }
+                        },
+                        onItemLongClick = { item -> viewModel.toggleSelection(item.path) }
                     )
                     else -> FileList(
                         items = uiState.displayedItems,
@@ -308,11 +331,19 @@ private fun NormalTopBar(
     currentSort: SortOption,
     sortAscending: Boolean,
     onSortOptionSelected: (SortOption) -> Unit,
-    onToggleDirection: () -> Unit
+    onToggleDirection: () -> Unit,
+    viewMode: ViewMode,
+    onToggleViewMode: () -> Unit
 ) {
     TopAppBar(
         title = { Text(text = title) },
         actions = {
+            IconButton(onClick = onToggleViewMode) {
+                Icon(
+                    if (viewMode == ViewMode.LIST) Icons.Filled.GridView else Icons.AutoMirrored.Filled.ViewList,
+                    contentDescription = if (viewMode == ViewMode.LIST) "Izgara görünümü" else "Liste görünümü"
+                )
+            }
             IconButton(onClick = onSearchClick) {
                 Icon(Icons.Filled.Search, contentDescription = "Ara")
             }
@@ -424,6 +455,81 @@ private fun LoadingContent() {
 }
 
 @Composable
+private fun FileGrid(
+    items: List<FileItem>,
+    selectedPaths: Set<String>,
+    isSelectionMode: Boolean,
+    onItemClick: (FileItem) -> Unit,
+    onItemLongClick: (FileItem) -> Unit
+) {
+    androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
+        columns = androidx.compose.foundation.lazy.grid.GridCells.Fixed(3),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.fillMaxSize()
+    ) {
+        androidx.compose.foundation.lazy.grid.items(items, key = { it.path }) { item ->
+            FileGridTile(
+                item = item,
+                isSelected = selectedPaths.contains(item.path),
+                isSelectionMode = isSelectionMode,
+                onClick = { onItemClick(item) },
+                onLongClick = { onItemLongClick(item) }
+            )
+        }
+    }
+}
+
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+private fun FileGridTile(
+    item: FileItem,
+    isSelected: Boolean,
+    isSelectionMode: Boolean,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit
+) {
+    val category = MimeTypeHelper.getCategory(item.name, item.isDirectory)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(
+                if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                MaterialTheme.shapes.medium
+            )
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            .padding(8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            com.example.smartfilemanager.ui.components.FileThumbnail(
+                path = item.path,
+                category = category,
+                size = 88.dp
+            )
+            if (isSelectionMode && isSelected) {
+                Box(
+                    modifier = Modifier
+                        .size(88.dp)
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.25f), MaterialTheme.shapes.medium),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Filled.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                }
+            }
+        }
+        Spacer(modifier = Modifier.padding(top = 4.dp))
+        Text(
+            text = item.name,
+            style = MaterialTheme.typography.labelSmall,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
 private fun FileList(
     items: List<FileItem>,
     selectedPaths: Set<String>,
@@ -496,10 +602,9 @@ private fun FileRow(
             Spacer(modifier = Modifier.padding(start = 8.dp))
         }
 
-        Icon(
-            imageVector = IconProvider.iconFor(category),
-            contentDescription = null,
-            tint = IconProvider.colorFor(category)
+        com.example.smartfilemanager.ui.components.FileThumbnail(
+            path = item.path,
+            category = category
         )
 
         Column(modifier = Modifier.padding(start = 16.dp).weight(1f)) {
