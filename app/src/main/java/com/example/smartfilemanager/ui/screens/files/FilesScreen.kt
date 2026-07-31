@@ -1,6 +1,7 @@
 package com.example.smartfilemanager.ui.screens.files
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items as gridItems
@@ -200,6 +202,9 @@ fun FilesScreen(
         }
     ) { paddingValues ->
         Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
+            if (path != null && !uiState.isSelectionMode && !isSearchActive) {
+                BreadcrumbRow(path = path, onNavigateToPath = onOpenFolder)
+            }
             Box(modifier = Modifier.weight(1f)) {
                 when {
                     path == null -> com.example.smartfilemanager.ui.components.EmptyState(
@@ -320,6 +325,54 @@ fun FilesScreen(
             onComputeHash = { algorithm -> viewModel.computeHash(info.path, algorithm) },
             onDismiss = { viewModel.clearFileInfo() }
         )
+    }
+}
+
+@Composable
+private fun BreadcrumbRow(path: String, onNavigateToPath: (String) -> Unit) {
+    // "/storage/emulated/0" kök olarak "Dahili Depolama" ismiyle gösterilir; sonraki
+    // segmentler tıklanabilir, kullanıcı bir üst klasöre tek dokunuşla atlayabilir.
+    val internalStorageRoot = "/storage/emulated/0"
+    val relativePath = path.removePrefix(internalStorageRoot).trim('/')
+    val segments = if (relativePath.isEmpty()) emptyList() else relativePath.split('/')
+
+    val crumbs = buildList {
+        add("Dahili Depolama" to internalStorageRoot)
+        var accumulated = internalStorageRoot
+        segments.forEach { segment ->
+            accumulated = "$accumulated/$segment"
+            add(segment to accumulated)
+        }
+    }
+
+    androidx.compose.foundation.lazy.LazyRow(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        itemsIndexed(crumbs) { index, (label, crumbPath) ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                val isLast = index == crumbs.lastIndex
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (isLast) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.primary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .clickable(enabled = !isLast) { onNavigateToPath(crumbPath) }
+                        .padding(vertical = 6.dp, horizontal = 4.dp)
+                )
+                if (!isLast) {
+                    Text(
+                        text = "/",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
     }
 }
 
