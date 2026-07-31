@@ -73,26 +73,28 @@ class HomeViewModel @Inject constructor(
         val hasPermission = permissionManager.hasAllFilesAccess()
         _uiState.value = _uiState.value.copy(hasPermission = hasPermission)
 
+        if (!hasPermission) {
+            _uiState.value = _uiState.value.copy(isLoading = false)
+            return
+        }
+
+        // ÖNEMLİ: Bu koruma yalnızca izin GERÇEKTEN verildiğinde devreye girer. Daha önce
+        // burada izin reddedilmişken bile "yüklendi" işaretleniyordu; kullanıcı sonradan
+        // izni verip geri döndüğünde gerçek önbellek/tarama mantığı hiç çalışmıyor,
+        // ekran sıfır/boş veriyle kalıyordu. Şimdi yalnızca izinliyken bir kez çalışır.
         if (hasLoadedOnce) return
         hasLoadedOnce = true
 
         viewModelScope.launch {
-            if (!hasPermission) {
-                _uiState.value = _uiState.value.copy(isLoading = false, hasPermission = false)
-                return@launch
-            }
-
             val cached = homeCacheManager.loadCache()
             if (cached != null) {
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
-                    hasPermission = true,
                     storageSummary = StorageSummary(cached.totalBytes, cached.usedBytes, cached.freeBytes),
                     categorySummaries = cached.categorySummaries,
                     lastScannedAtMillis = cached.scannedAtMillis
                 )
             } else {
-                // İlk açılış: önbellek yok, taramak gerekiyor.
                 startScan()
             }
         }
