@@ -41,6 +41,12 @@ class HomeCacheManager @Inject constructor(
     suspend fun loadCache(): CachedHomeSummary? {
         val prefs = context.homeCacheDataStore.data.first()
         val scannedAt = prefs[scannedAtKey] ?: return null
+        val totalBytes = prefs[totalBytesKey] ?: 0L
+
+        // Gerçek bir cihazın toplam depolaması asla 0 olamaz. 0 görüyorsak bu önbellek
+        // bozuk/eksik bir taramadan kalmış demektir — geçerli kabul etmeyip yeniden
+        // taramayı tetiklememiz gerekir, aksi halde kullanıcıya yanlış "0 B" verisi gösteririz.
+        if (totalBytes <= 0L) return null
 
         val categorySummaries = FileCategory.entries
             .filter { it != FileCategory.FOLDER }
@@ -53,7 +59,7 @@ class HomeCacheManager @Inject constructor(
             }
 
         return CachedHomeSummary(
-            totalBytes = prefs[totalBytesKey] ?: 0L,
+            totalBytes = totalBytes,
             usedBytes = prefs[usedBytesKey] ?: 0L,
             freeBytes = prefs[freeBytesKey] ?: 0L,
             categorySummaries = categorySummaries,
@@ -67,6 +73,7 @@ class HomeCacheManager @Inject constructor(
         freeBytes: Long,
         categorySummaries: List<CategorySummary>
     ) {
+        if (totalBytes <= 0L) return // Bozuk/eksik bir sonucu asla onbellege yazma
         context.homeCacheDataStore.edit { prefs ->
             prefs[totalBytesKey] = totalBytes
             prefs[usedBytesKey] = usedBytes
