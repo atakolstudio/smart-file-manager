@@ -16,6 +16,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
@@ -462,14 +465,14 @@ private fun FileGrid(
     onItemClick: (FileItem) -> Unit,
     onItemLongClick: (FileItem) -> Unit
 ) {
-    androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
-        columns = androidx.compose.foundation.lazy.grid.GridCells.Fixed(3),
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(3),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         modifier = Modifier.fillMaxSize()
     ) {
-        androidx.compose.foundation.lazy.grid.items(items, key = { it.path }) { item ->
+        gridItems(items, key = { it.path }) { item ->
             FileGridTile(
                 item = item,
                 isSelected = selectedPaths.contains(item.path),
