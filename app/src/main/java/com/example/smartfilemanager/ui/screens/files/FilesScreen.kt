@@ -88,10 +88,16 @@ import kotlinx.coroutines.launch
 
 private val previewableTextExtensions = setOf("txt", "md", "json", "xml", "html", "csv", "log", "kt", "java", "gradle", "properties")
 private val previewableImageExtensions = setOf("jpg", "jpeg", "png", "gif", "bmp", "webp", "heic", "heif")
+private val previewableVideoExtensions = setOf("mp4", "mkv", "avi", "mov", "wmv", "flv", "webm", "3gp", "m4v")
+private val previewableAudioExtensions = setOf("mp3", "wav", "ogg", "flac", "aac", "m4a", "wma", "opus")
 
 private fun isPreviewableInApp(item: FileItem): Boolean {
     val extension = item.extension.lowercase()
-    return extension == "pdf" || extension in previewableImageExtensions || extension in previewableTextExtensions
+    return extension == "pdf" || extension == "apk" ||
+        extension in previewableImageExtensions ||
+        extension in previewableTextExtensions ||
+        extension in previewableVideoExtensions ||
+        extension in previewableAudioExtensions
 }
 
 private enum class ViewMode { LIST, GRID }
